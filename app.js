@@ -20,6 +20,10 @@ class ExpenseTracker {
         this.lastSyncTime = null;
         this.pendingSync = [];
         
+        // CSP and resource loading status
+        this.googleApiAvailable = false;
+        this.chartJsAvailable = false;
+        
         // Credentials from provided JSON
         this.googleCredentials = {
             clientId: "233167876623-d6qu3irgp5k90em45klitumise38c329.apps.googleusercontent.com",
@@ -103,51 +107,31 @@ class ExpenseTracker {
         this.updateCurrentMonthDisplay();
         this.updateSyncStatus();
         this.setupTouchEvents();
-        // Google Drive initialization is now deferred to initClient()
+        
+        // Check for external resources with timeout
+        setTimeout(() => {
+            this.checkExternalResources();
+            this.initializeGoogleAPI();
+        }, 1500);
     }
     
-    async initializeGoogleDrive() {
-        try {
-            // Wait for Google API to be available
-            if (typeof window.gapi === 'undefined') {
-                console.log('Google API not available yet');
-                return;
-            }
-            
-            // Wait for gapi to load auth2 and client
-            await new Promise((resolve, reject) => {
-                window.gapi.load('auth2:client', {
-                    callback: resolve,
-                    onerror: reject
-                });
-            });
-            
-            await window.gapi.client.init({
-                clientId: this.googleCredentials.clientId,
-                scope: this.googleCredentials.scopes.join(' '),
-                discoveryDocs: this.googleCredentials.discoveryDocs
-            });
-            
-            this.googleAuth = window.gapi.auth2.getAuthInstance();
-            
-            // Check if already signed in
-            if (this.googleAuth.isSignedIn.get()) {
-                this.isGoogleConnected = true;
-                this.syncStatus = 'online';
-                this.hideAuthBanner();
-                await this.setupDriveFolder();
-                this.updateSyncStatus();
-            }
-            
-            console.log('Google API initialized successfully');
-            
-        } catch (error) {
-            console.error('Google API initialization failed:', error);
-            this.syncStatus = 'error';
-            this.updateSyncStatus();
-            // Show user-friendly message instead of technical error
-            this.showMessage('Google Drive setup is temporarily unavailable. Your data will be saved locally.', 'warning');
+    checkExternalResources() {
+        // Check Chart.js availability
+        this.chartJsAvailable = (typeof window.Chart !== 'undefined') && !window.chartJsLoadFailed;
+        
+        // Check Google API availability  
+        this.googleApiAvailable = (typeof window.gapi !== 'undefined') && !window.googleApiLoadFailed;
+        
+        if (!this.chartJsAvailable) {
+            console.warn('Chart.js not available, analytics will show fallback content');
         }
+        
+        if (!this.googleApiAvailable) {
+            console.warn('Google API not available, Drive sync is disabled');
+            this.syncStatus = 'error';
+        }
+        
+        this.updateSyncStatus();
     }
     
     loadData() {
@@ -165,7 +149,7 @@ class ExpenseTracker {
             this.lastSyncTime = window.localStorage?.getItem('lastSyncTime');
             this.isGoogleConnected = window.localStorage?.getItem('isGoogleConnected') === 'true';
         } catch (error) {
-            // If localStorage fails, start with empty data
+            console.warn('localStorage not available, using in-memory storage');
             this.expenses = [];
             this.paymentMethods = [];
             this.reminders = [];
@@ -185,7 +169,7 @@ class ExpenseTracker {
                 window.localStorage.setItem('expenses', JSON.stringify(this.expenses));
             }
         } catch (error) {
-            console.log('Unable to save expenses to localStorage');
+            console.warn('Unable to save expenses to localStorage');
         }
     }
     
@@ -195,7 +179,7 @@ class ExpenseTracker {
                 window.localStorage.setItem('paymentMethods', JSON.stringify(this.paymentMethods));
             }
         } catch (error) {
-            console.log('Unable to save payment methods to localStorage');
+            console.warn('Unable to save payment methods to localStorage');
         }
     }
     
@@ -205,7 +189,7 @@ class ExpenseTracker {
                 window.localStorage.setItem('reminders', JSON.stringify(this.reminders));
             }
         } catch (error) {
-            console.log('Unable to save reminders to localStorage');
+            console.warn('Unable to save reminders to localStorage');
         }
     }
     
@@ -216,7 +200,7 @@ class ExpenseTracker {
                 window.localStorage.setItem('isGoogleConnected', this.isGoogleConnected.toString());
             }
         } catch (error) {
-            console.log('Unable to save Google settings to localStorage');
+            console.warn('Unable to save Google settings to localStorage');
         }
     }
     
@@ -266,14 +250,78 @@ class ExpenseTracker {
         document.addEventListener('touchstart', function(){}, {passive: true});
     }
     
+    async initializeGoogleAPI() {
+        if (!this.googleApiAvailable) {
+            console.log('Google API not available, skipping initialization');
+            return;
+        }
+        
+        try {
+            // Wait for Google API to be fully loaded
+            let attempts = 0;
+            while (typeof window.gapi === 'undefined' && attempts < 10) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                attempts++;
+            }
+            
+            if (typeof window.gapi === 'undefined') {
+                throw new Error('Google API failed to load after waiting');
+            }
+            
+            await new Promise((resolve, reject) => {
+                window.gapi.load('auth2', {
+                    callback: resolve,
+                    onerror: reject
+                });
+            });
+            
+            await new Promise((resolve, reject) => {
+                window.gapi.load('client', {
+                    callback: resolve,
+                    onerror: reject
+                });
+            });
+            
+            await window.gapi.client.init({
+                clientId: this.googleCredentials.clientId,
+                scope: this.googleCredentials.scopes.join(' '),
+                discoveryDocs: this.googleCredentials.discoveryDocs
+            });
+            
+            this.googleAuth = window.gapi.auth2.getAuthInstance();
+            
+            // Check if already signed in
+            if (this.googleAuth.isSignedIn.get()) {
+                this.isGoogleConnected = true;
+                this.syncStatus = 'online';
+                this.hideAuthBanner();
+                await this.setupDriveFolder();
+                this.updateSyncStatus();
+            }
+            
+            console.log('Google API initialized successfully');
+            
+        } catch (error) {
+            console.error('Google API initialization failed:', error);
+            this.googleApiAvailable = false;
+            this.syncStatus = 'error';
+            this.updateSyncStatus();
+        }
+    }
+    
     async connectGoogleDrive() {
+        if (!this.googleApiAvailable) {
+            this.showMessage('Google Drive sync is not available in this environment. Your data will be saved locally.', 'info');
+            return;
+        }
+        
         try {
             this.syncStatus = 'syncing';
             this.updateSyncStatus();
             this.showMessage('Connecting to Google Drive...', 'info');
             
             if (!this.googleAuth) {
-                await this.initializeGoogleDrive();
+                await this.initializeGoogleAPI();
             }
             
             if (!this.googleAuth) {
@@ -303,7 +351,7 @@ class ExpenseTracker {
             console.error('Google Drive connection failed:', error);
             this.syncStatus = 'error';
             this.updateSyncStatus();
-            this.showMessage('Google Drive connection is temporarily unavailable. Your data will be saved locally.', 'warning');
+            this.showMessage('Google Drive connection failed. Your data will be saved locally.', 'error');
         }
     }
     
@@ -406,7 +454,7 @@ class ExpenseTracker {
     }
     
     async performFullSync() {
-        if (!this.isGoogleConnected) return;
+        if (!this.isGoogleConnected || !this.googleApiAvailable) return;
         
         try {
             this.syncStatus = 'syncing';
@@ -430,7 +478,7 @@ class ExpenseTracker {
     }
     
     async syncDataToDrive(dataType, data) {
-        if (!this.driveFiles[dataType]) return;
+        if (!this.driveFiles[dataType] || !this.googleApiAvailable) return;
         
         try {
             await window.gapi.client.request({
@@ -450,7 +498,7 @@ class ExpenseTracker {
     }
     
     async loadDataFromDrive(dataType) {
-        if (!this.driveFiles[dataType]) return [];
+        if (!this.driveFiles[dataType] || !this.googleApiAvailable) return [];
         
         try {
             const response = await window.gapi.client.drive.files.get({
@@ -468,6 +516,11 @@ class ExpenseTracker {
     async manualSync() {
         if (!this.isGoogleConnected) {
             this.showMessage('Please connect to Google Drive first', 'error');
+            return;
+        }
+        
+        if (!this.googleApiAvailable) {
+            this.showMessage('Google API is not available due to security restrictions', 'error');
             return;
         }
         
@@ -501,7 +554,13 @@ class ExpenseTracker {
         const manualSyncBtn = document.querySelector('[onclick="app.manualSync()"]');
         
         if (connectionStatus) {
-            connectionStatus.textContent = this.isGoogleConnected ? 'Google Drive Connected' : 'Local Storage Only';
+            if (this.googleApiAvailable && this.isGoogleConnected) {
+                connectionStatus.textContent = 'Google Drive Connected';
+            } else if (!this.googleApiAvailable) {
+                connectionStatus.textContent = 'Google API Unavailable - Local Storage Only';
+            } else {
+                connectionStatus.textContent = 'Local Storage Only';
+            }
         }
         
         if (lastSync) {
@@ -518,7 +577,7 @@ class ExpenseTracker {
         }
         
         if (manualSyncBtn) {
-            manualSyncBtn.disabled = !this.isGoogleConnected;
+            manualSyncBtn.disabled = !this.isGoogleConnected || !this.googleApiAvailable;
         }
     }
     
@@ -539,15 +598,23 @@ class ExpenseTracker {
                     syncText.textContent = 'Syncing...';
                     break;
                 case 'error':
-                    syncText.textContent = 'Sync Error';
+                    if (!this.googleApiAvailable) {
+                        syncText.textContent = 'Local Storage Only';
+                    } else {
+                        syncText.textContent = 'Sync Error';
+                    }
                     break;
                 default:
-                    syncText.textContent = 'Local Storage';
+                    syncText.textContent = 'Local Storage Only';
             }
         }
         
-        // Show/hide appropriate status bars
-        if (this.isGoogleConnected) {
+        // Show/hide appropriate status bars based on API availability
+        if (this.googleApiAvailable && this.isGoogleConnected) {
+            if (authBanner) authBanner.classList.add('hidden');
+            if (syncStatus) syncStatus.classList.remove('hidden');
+        } else if (!this.googleApiAvailable) {
+            // Hide auth banner if Google API isn't available, show sync status
             if (authBanner) authBanner.classList.add('hidden');
             if (syncStatus) syncStatus.classList.remove('hidden');
         } else {
@@ -575,11 +642,16 @@ class ExpenseTracker {
             const statusDot = connectionStatus.querySelector('.status-dot');
             const statusText = statusIndicator?.querySelector('span:last-child');
             
-            if (this.isGoogleConnected && statusDot && statusText) {
+            if (this.googleApiAvailable && this.isGoogleConnected && statusDot && statusText) {
                 statusDot.className = 'status-dot online';
                 statusText.textContent = 'Connected to Google Drive';
                 const descP = connectionStatus.querySelector('p');
                 if (descP) descP.textContent = 'Your data is syncing with Google Drive automatically.';
+            } else if (!this.googleApiAvailable && statusDot && statusText) {
+                statusDot.className = 'status-dot offline';
+                statusText.textContent = 'Local Storage Only';
+                const descP = connectionStatus.querySelector('p');
+                if (descP) descP.textContent = 'Using local storage. Google Drive sync not available in this environment.';
             } else if (statusDot && statusText) {
                 statusDot.className = 'status-dot offline';
                 statusText.textContent = 'Not Connected';
@@ -664,10 +736,6 @@ class ExpenseTracker {
                 }
                 expenseDropdown.appendChild(option);
             });
-            
-            // Force refresh of the dropdown to ensure it's interactive
-            expenseDropdown.style.pointerEvents = 'auto';
-            expenseDropdown.disabled = false;
         }
         
         // Clear and repopulate reminder payment method dropdown
@@ -683,21 +751,7 @@ class ExpenseTracker {
                 }
                 reminderDropdown.appendChild(option);
             });
-            
-            // Force refresh of the dropdown to ensure it's interactive
-            reminderDropdown.style.pointerEvents = 'auto';
-            reminderDropdown.disabled = false;
         }
-        
-        // Trigger a change event to ensure dropdowns are properly initialized
-        setTimeout(() => {
-            if (expenseDropdown) {
-                expenseDropdown.dispatchEvent(new Event('change'));
-            }
-            if (reminderDropdown) {
-                reminderDropdown.dispatchEvent(new Event('change'));
-            }
-        }, 10);
     }
     
     showView(viewName) {
@@ -728,17 +782,14 @@ class ExpenseTracker {
             this.updateDashboard();
         } else if (viewName === 'add-expense') {
             // Always refresh payment method dropdowns when entering add expense view
+            this.updatePaymentMethodDropdowns();
             this.setCurrentDate();
-            // Delay dropdown update to ensure view is fully loaded
-            setTimeout(() => {
-                this.updatePaymentMethodDropdowns();
-            }, 200);
         } else if (viewName === 'payment-methods') {
             this.updatePaymentMethodsList();
         } else if (viewName === 'reminders') {
             this.updateRemindersList();
             // Refresh payment method dropdowns for reminder form
-            setTimeout(() => this.updatePaymentMethodDropdowns(), 200);
+            this.updatePaymentMethodDropdowns();
         } else if (viewName === 'analytics') {
             this.updateAnalytics();
         } else if (viewName === 'settings') {
@@ -765,7 +816,7 @@ class ExpenseTracker {
         this.showView('dashboard');
         
         // Auto-sync to Google Drive
-        if (this.isGoogleConnected) {
+        if (this.isGoogleConnected && this.googleApiAvailable) {
             try {
                 await this.syncDataToDrive('expenses', this.expenses);
                 this.lastSyncTime = new Date().toISOString();
@@ -807,11 +858,12 @@ class ExpenseTracker {
         this.savePaymentMethods();
         
         // Update all relevant UI components immediately
+        this.updatePaymentMethodDropdowns(); // Update dropdowns immediately
         this.updatePaymentMethodsList(); // Update the list view
         this.hidePaymentMethodForm();
         
         // Auto-sync to Google Drive
-        if (this.isGoogleConnected) {
+        if (this.isGoogleConnected && this.googleApiAvailable) {
             try {
                 await this.syncDataToDrive('paymentMethods', this.paymentMethods);
                 this.lastSyncTime = new Date().toISOString();
@@ -823,7 +875,7 @@ class ExpenseTracker {
         
         this.showMessage('Payment method added successfully!', 'success');
         
-        // Force refresh dropdowns after payment method is added
+        // Force refresh dropdowns after a delay to ensure they're populated everywhere
         setTimeout(() => {
             this.updatePaymentMethodDropdowns();
         }, 100);
@@ -837,7 +889,7 @@ class ExpenseTracker {
             this.updatePaymentMethodsList();
             
             // Auto-sync to Google Drive
-            if (this.isGoogleConnected) {
+            if (this.isGoogleConnected && this.googleApiAvailable) {
                 try {
                     await this.syncDataToDrive('paymentMethods', this.paymentMethods);
                     this.lastSyncTime = new Date().toISOString();
@@ -859,7 +911,7 @@ class ExpenseTracker {
         this.updatePaymentMethodsList();
         
         // Auto-sync to Google Drive
-        if (this.isGoogleConnected) {
+        if (this.isGoogleConnected && this.googleApiAvailable) {
             try {
                 await this.syncDataToDrive('paymentMethods', this.paymentMethods);
                 this.lastSyncTime = new Date().toISOString();
@@ -895,7 +947,7 @@ class ExpenseTracker {
         this.updateDashboard();
         
         // Auto-sync to Google Drive
-        if (this.isGoogleConnected) {
+        if (this.isGoogleConnected && this.googleApiAvailable) {
             try {
                 await this.syncDataToDrive('reminders', this.reminders);
                 this.lastSyncTime = new Date().toISOString();
@@ -916,7 +968,7 @@ class ExpenseTracker {
             this.updateDashboard();
             
             // Auto-sync to Google Drive
-            if (this.isGoogleConnected) {
+            if (this.isGoogleConnected && this.googleApiAvailable) {
                 try {
                     await this.syncDataToDrive('reminders', this.reminders);
                     this.lastSyncTime = new Date().toISOString();
@@ -958,7 +1010,7 @@ class ExpenseTracker {
         }
         
         // Auto-sync both to Google Drive
-        if (this.isGoogleConnected) {
+        if (this.isGoogleConnected && this.googleApiAvailable) {
             try {
                 await this.syncDataToDrive('expenses', this.expenses);
                 await this.syncDataToDrive('reminders', this.reminders);
@@ -1048,7 +1100,7 @@ class ExpenseTracker {
                     this.updatePaymentMethodDropdowns();
                     
                     // Auto-sync to Google Drive
-                    if (this.isGoogleConnected) {
+                    if (this.isGoogleConnected && this.googleApiAvailable) {
                         await this.performFullSync();
                     }
                     
@@ -1076,7 +1128,7 @@ class ExpenseTracker {
             this.updateRemindersList();
             
             // Auto-sync to Google Drive
-            if (this.isGoogleConnected) {
+            if (this.isGoogleConnected && this.googleApiAvailable) {
                 await this.performFullSync();
             }
             
@@ -1360,7 +1412,39 @@ class ExpenseTracker {
             return;
         }
         
-        // Restore the charts container if it was replaced by empty state
+        // Check if Chart.js is available
+        if (!this.chartJsAvailable) {
+            const analyticsContent = document.getElementById('analytics-content');
+            if (analyticsContent) {
+                analyticsContent.innerHTML = `
+                    <div class="card">
+                        <div class="card__body">
+                            <h3>Spending by Category</h3>
+                            <div class="chart-fallback">
+                                <div>
+                                    <h4>Charts unavailable</h4>
+                                    <p>Chart functionality is disabled due to security restrictions</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card__body">
+                            <h3>Payment Method Usage</h3>
+                            <div class="chart-fallback">
+                                <div>
+                                    <h4>Charts unavailable</h4>
+                                    <p>Chart functionality is disabled due to security restrictions</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            return;
+        }
+        
+        // Restore the charts container if it was replaced by empty state or fallback
         if (!document.getElementById('category-chart')) {
             const analyticsContent = document.getElementById('analytics-content');
             if (analyticsContent) {
@@ -1390,6 +1474,8 @@ class ExpenseTracker {
     }
     
     updateCategoryChart() {
+        if (!this.chartJsAvailable) return;
+        
         const currentMonthExpenses = this.getCurrentMonthExpenses();
         const categoryTotals = {};
         
@@ -1407,35 +1493,41 @@ class ExpenseTracker {
             this.categoryChart.destroy();
         }
         
-        this.categoryChart = new Chart(ctx.getContext('2d'), {
-            type: 'pie',
-            data: {
-                labels: Object.keys(categoryTotals),
-                datasets: [{
-                    data: Object.values(categoryTotals),
-                    backgroundColor: ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F', '#DB4545', '#D2BA4C', '#964325', '#944454', '#13343B']
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: (context) => {
-                                return `${context.label}: ${this.formatCurrency(context.raw)}`;
+        try {
+            this.categoryChart = new Chart(ctx.getContext('2d'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(categoryTotals),
+                    datasets: [{
+                        data: Object.values(categoryTotals),
+                        backgroundColor: ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F', '#DB4545', '#D2BA4C', '#964325', '#944454', '#13343B']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    return `${context.label}: ${this.formatCurrency(context.raw)}`;
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        } catch (error) {
+            console.error('Failed to create category chart:', error);
+        }
     }
     
     updatePaymentMethodChart() {
+        if (!this.chartJsAvailable) return;
+        
         const currentMonthExpenses = this.getCurrentMonthExpenses();
         const paymentTotals = {};
         
@@ -1453,43 +1545,47 @@ class ExpenseTracker {
             this.paymentChart.destroy();
         }
         
-        this.paymentChart = new Chart(ctx.getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: Object.keys(paymentTotals),
-                datasets: [{
-                    label: 'Amount Spent',
-                    data: Object.values(paymentTotals),
-                    backgroundColor: ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F']
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: (context) => {
-                                return `Amount: ${this.formatCurrency(context.raw)}`;
+        try {
+            this.paymentChart = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(paymentTotals),
+                    datasets: [{
+                        label: 'Amount Spent',
+                        data: Object.values(paymentTotals),
+                        backgroundColor: ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    return `Amount: ${this.formatCurrency(context.raw)}`;
+                                }
                             }
                         }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: (value) => {
-                                return this.formatCurrency(value);
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: (value) => {
+                                    return this.formatCurrency(value);
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        } catch (error) {
+            console.error('Failed to create payment method chart:', error);
+        }
     }
     
     changeMonth(direction) {
@@ -1535,7 +1631,7 @@ class ExpenseTracker {
             form.reset();
             this.setCurrentDate();
             // Ensure dropdowns are populated when reminder form opens
-            setTimeout(() => this.updatePaymentMethodDropdowns(), 100);
+            this.updatePaymentMethodDropdowns();
         }
     }
     
@@ -1547,34 +1643,25 @@ class ExpenseTracker {
     }
     
     showMessage(message, type = 'info') {
-        // Create a temporary message element
+        // Create a temporary toast message
         const messageEl = document.createElement('div');
-        messageEl.className = `status status--${type}`;
+        messageEl.className = `toast ${type}`;
         messageEl.textContent = message;
-        messageEl.style.cssText = `
-            position: fixed;
-            top: 80px;
-            right: 20px;
-            z-index: 9999;
-            max-width: 300px;
-        `;
         
         document.body.appendChild(messageEl);
         
         setTimeout(() => {
             if (document.body.contains(messageEl)) {
-                document.body.removeChild(messageEl);
+                messageEl.style.opacity = '0';
+                setTimeout(() => {
+                    if (document.body.contains(messageEl)) {
+                        document.body.removeChild(messageEl);
+                    }
+                }, 300);
             }
         }, 3000);
     }
 }
-
-// Global initClient function that gets called after gapi is loaded
-window.initClient = async function() {
-    if (window.app) {
-        await window.app.initializeGoogleDrive();
-    }
-};
 
 // Global functions for template usage
 function showView(viewName) {

@@ -1443,6 +1443,19 @@ select.form-control {
   position: relative;
 }
 
+/* Chart fallback when Chart.js fails to load */
+.chart-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  background: var(--color-bg-2);
+  border-radius: var(--radius-base);
+  color: var(--color-text-secondary);
+  text-align: center;
+  padding: var(--space-20);
+}
+
 /* Empty States */
 .empty-state {
   text-align: center;
@@ -1509,6 +1522,70 @@ select.form-control {
   border-radius: var(--radius-base);
   margin-bottom: var(--space-16);
   font-size: var(--font-size-sm);
+}
+
+/* Error message styling */
+.error-message {
+  background: var(--color-bg-4);
+  color: var(--color-error);
+  padding: var(--space-12);
+  border-radius: var(--radius-base);
+  margin-bottom: var(--space-16);
+  font-size: var(--font-size-sm);
+  border: 1px solid rgba(var(--color-error-rgb), 0.3);
+}
+
+.success-message {
+  background: var(--color-bg-3);
+  color: var(--color-success);
+  padding: var(--space-12);
+  border-radius: var(--radius-base);
+  margin-bottom: var(--space-16);
+  font-size: var(--font-size-sm);
+  border: 1px solid rgba(var(--color-success-rgb), 0.3);
+}
+
+/* Toast notifications */
+.toast {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 9999;
+  max-width: 300px;
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-sm);
+  box-shadow: var(--shadow-lg);
+  animation: slideIn 0.3s ease-out;
+}
+
+.toast.success {
+  background: var(--color-bg-3);
+  color: var(--color-success);
+  border: 1px solid rgba(var(--color-success-rgb), 0.3);
+}
+
+.toast.error {
+  background: var(--color-bg-4);
+  color: var(--color-error);
+  border: 1px solid rgba(var(--color-error-rgb), 0.3);
+}
+
+.toast.info {
+  background: var(--color-bg-1);
+  color: var(--color-info);
+  border: 1px solid rgba(var(--color-info-rgb), 0.3);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 /* Responsive Design - Tablet and Desktop */
@@ -1638,5 +1715,12 @@ select.form-control {
   
   .sync-dot.syncing {
     animation: none;
+  }
+  
+  @keyframes slideIn {
+    from, to {
+      transform: translateX(0);
+      opacity: 1;
+    }
   }
 }
