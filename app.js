@@ -45,40 +45,17 @@ class ExpenseTracker {
         
         // Indian context data from provided JSON
         this.expenseCategories = [
-            "Food & Dining",
-            "Groceries", 
-            "Transportation",
-            "Fuel",
-            "House Rent",
-            "Utilities",
-            "Internet & Phone",
-            "Healthcare",
-            "Entertainment",
-            "Shopping",
-            "Education",
-            "Travel",
-            "Insurance",
-            "Investments",
-            "EMI Payments",
-            "Other"
+            "Food & Dining", "Groceries", "Transportation", "Fuel", "House Rent",
+            "Utilities", "Internet & Phone", "Healthcare", "Entertainment", "Shopping",
+            "Education", "Travel", "Insurance", "Investments", "EMI Payments", "Other"
         ];
         
         this.paymentMethodTypes = [
-            "Credit Card",
-            "Debit Card",
-            "Bank Account", 
-            "UPI",
-            "Digital Wallet",
-            "Cash"
+            "Credit Card", "Debit Card", "Bank Account", "UPI", "Digital Wallet", "Cash"
         ];
         
         this.recurrenceOptions = [
-            "Weekly",
-            "Bi-weekly",
-            "Monthly", 
-            "Quarterly",
-            "Half-yearly",
-            "Yearly"
+            "Weekly", "Bi-weekly", "Monthly", "Quarterly", "Half-yearly", "Yearly"
         ];
         
         this.currencySymbol = "₹";
@@ -115,62 +92,39 @@ class ExpenseTracker {
         this.updateSyncStatus();
     }
     
+    // ✨ REPLACED FUNCTION
     async initializeGoogleDrive() {
         try {
-            console.log('Starting Google Drive initialization...');
-            
-            // Wait for Google API to be available
-            if (typeof window.gapi === 'undefined') {
-                console.log('Google API not available yet, will retry...');
-                this.syncStatus = 'offline';
-                this.updateSyncStatus();
-                return;
-            }
-            
-            console.log('Google API available, loading auth2 and client...');
-            
-            // Wait for gapi to load auth2 and client
+            // This function now only loads the GAPI client library.
+            // Authentication is handled by the new connectGoogleDrive method.
             await new Promise((resolve, reject) => {
-                window.gapi.load('auth2:client', {
-                    callback: resolve,
-                    onerror: (error) => {
-                        console.error('GAPI load error:', error);
-                        reject(error);
-                    }
-                });
+                if (window.gapi) {
+                    window.gapi.load('client', {
+                        callback: resolve,
+                        onerror: reject,
+                        timeout: 5000, // Add a timeout
+                        ontimeout: reject
+                    });
+                } else {
+                    console.error("GAPI script not loaded yet.");
+                    reject("GAPI not loaded");
+                }
             });
-            
-            console.log('Google API auth2 and client loaded successfully');
-            
+    
+            // Initialize the GAPI client with the Drive discovery document
             await window.gapi.client.init({
-                clientId: this.googleCredentials.clientId,
-                scope: this.googleCredentials.scopes.join(' '),
-                discoveryDocs: this.googleCredentials.discoveryDocs
+                discoveryDocs: this.googleCredentials.discoveryDocs,
             });
-            
-            this.googleAuth = window.gapi.auth2.getAuthInstance();
-            
-            // Check if already signed in
-            if (this.googleAuth.isSignedIn.get()) {
-                console.log('User already signed in to Google');
-                this.isGoogleConnected = true;
-                this.syncStatus = 'online';
-                await this.setupDriveFolder();
-                this.updateSyncStatus();
-                this.showMessage('Google Drive connected successfully!', 'success');
-            } else {
-                console.log('User not signed in, ready for connection');
-                this.syncStatus = 'offline';
-                this.updateSyncStatus();
-            }
-            
-            console.log('Google API initialized successfully');
-            
-        } catch (error) {
-            console.error('Google API initialization failed:', error);
-            this.syncStatus = 'offline'; // Set to offline instead of error
+    
+            console.log('GAPI client initialized for Drive API.');
+            this.syncStatus = 'offline';
             this.updateSyncStatus();
-            // Don't show error message to avoid confusion
+    
+        } catch (error) {
+            console.error('GAPI client initialization failed:', error);
+            this.syncStatus = 'offline';
+            this.updateSyncStatus();
+            this.showMessage('Could not initialize Google connection.', 'error');
         }
     }
     
@@ -293,44 +247,52 @@ class ExpenseTracker {
         // Add touch event handling for better mobile experience
         document.addEventListener('touchstart', function(){}, {passive: true});
     }
+
+    // ✨ REPLACED FUNCTION
+    connectGoogleDrive() {
+        this.syncStatus = 'syncing';
+        this.updateSyncStatus();
+        this.showMessage('Connecting to Google Drive...', 'info');
     
-    async connectGoogleDrive() {
         try {
-            this.syncStatus = 'syncing';
-            this.updateSyncStatus();
-            this.showMessage('Connecting to Google Drive...', 'info');
-            
-            if (!this.googleAuth) {
-                await this.initializeGoogleDrive();
-            }
-            
-            if (!this.googleAuth) {
-                throw new Error('Google API not initialized');
-            }
-            
-            // Sign in to Google
-            const user = await this.googleAuth.signIn();
-            
-            if (user.isSignedIn()) {
-                this.isGoogleConnected = true;
-                this.syncStatus = 'online';
-                
-                // Setup Drive folder and files
-                await this.setupDriveFolder();
-                
-                // Perform initial sync
-                await this.performFullSync();
-                
-                this.updateSyncStatus();
-                this.saveGoogleSettings();
-                
-                this.showMessage('Successfully connected to Google Drive!', 'success');
-            }
+            // Initialize a token client for the user to grant scopes
+            const tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: this.googleCredentials.clientId,
+                scope: this.googleCredentials.scopes.join(' '),
+                callback: async (tokenResponse) => {
+                    if (tokenResponse.error) {
+                        throw new Error(tokenResponse.error);
+                    }
+                    console.log('Access token received.');
+    
+                    // Authorize the GAPI client library with the user's token
+                    window.gapi.client.setToken(tokenResponse);
+    
+                    this.isGoogleConnected = true;
+                    this.syncStatus = 'online';
+    
+                    // Setup Drive folder and files
+                    await this.setupDriveFolder();
+    
+                    // Perform initial sync
+                    await this.performFullSync();
+    
+                    this.updateSyncStatus();
+                    this.saveGoogleSettings();
+                    this.updateSettingsView();
+    
+                    this.showMessage('Successfully connected to Google Drive!', 'success');
+                },
+            });
+    
+            // Prompt the user to select an account and grant access
+            tokenClient.requestAccessToken();
+    
         } catch (error) {
             console.error('Google Drive connection failed:', error);
             this.syncStatus = 'offline';
             this.updateSyncStatus();
-            this.showMessage('Unable to connect to Google Drive at this time. Your data will be saved locally.', 'info');
+            this.showMessage('Unable to connect to Google Drive.', 'error');
         }
     }
     
@@ -349,7 +311,8 @@ class ExpenseTracker {
                     resource: {
                         name: this.driveConfig.folderName,
                         mimeType: 'application/vnd.google-apps.folder'
-                    }
+                    },
+                    fields: 'id'
                 });
                 folderId = createResponse.result.id;
             } else {
@@ -368,70 +331,40 @@ class ExpenseTracker {
     }
     
     async setupDataFiles() {
-        const fileNames = Object.values(this.driveConfig.files);
-        
-        for (const fileName of fileNames) {
+        for (const dataType in this.driveConfig.files) {
+            const fileName = this.driveConfig.files[dataType];
             try {
                 // Check if file exists
                 const fileResponse = await window.gapi.client.drive.files.list({
                     q: `name='${fileName}' and '${this.driveFolderId}' in parents and trashed=false`,
-                    spaces: 'drive'
+                    spaces: 'drive',
+                    fields: 'files(id)'
                 });
                 
                 if (fileResponse.result.files.length === 0) {
                     // Create empty file
-                    const createResponse = await window.gapi.client.request({
-                        path: 'https://www.googleapis.com/upload/drive/v3/files',
-                        method: 'POST',
-                        params: {
-                            uploadType: 'multipart'
+                    const fileMetadata = {
+                        name: fileName,
+                        parents: [this.driveFolderId]
+                    };
+                    const createResponse = await window.gapi.client.drive.files.create({
+                        resource: fileMetadata,
+                        media: {
+                            mimeType: 'application/json',
+                            body: JSON.stringify([])
                         },
-                        headers: {
-                            'Content-Type': 'multipart/related; boundary="foo_bar_baz"'
-                        },
-                        body: this.createMultipartBody({
-                            name: fileName,
-                            parents: [this.driveFolderId]
-                        }, JSON.stringify([]))
+                        fields: 'id'
                     });
-                    
-                    // Store file reference
-                    const dataType = Object.keys(this.driveConfig.files).find(
-                        key => this.driveConfig.files[key] === fileName
-                    );
-                    if (dataType) {
-                        this.driveFiles[dataType] = createResponse.result.id;
-                    }
+                    this.driveFiles[dataType] = createResponse.result.id;
                 } else {
-                    // Store existing file reference
-                    const dataType = Object.keys(this.driveConfig.files).find(
-                        key => this.driveConfig.files[key] === fileName
-                    );
-                    if (dataType) {
-                        this.driveFiles[dataType] = fileResponse.result.files[0].id;
-                    }
+                    this.driveFiles[dataType] = fileResponse.result.files[0].id;
                 }
             } catch (error) {
                 console.error(`Failed to setup file ${fileName}:`, error);
             }
         }
     }
-    
-    createMultipartBody(metadata, data) {
-        const delimiter = 'foo_bar_baz';
-        const close_delim = `\r\n--${delimiter}--`;
-        
-        let body = `--${delimiter}\r\n`;
-        body += 'Content-Type: application/json\r\n\r\n';
-        body += JSON.stringify(metadata) + '\r\n';
-        body += `--${delimiter}\r\n`;
-        body += 'Content-Type: application/json\r\n\r\n';
-        body += data;
-        body += close_delim;
-        
-        return body;
-    }
-    
+
     async performFullSync() {
         if (!this.isGoogleConnected) return;
         
@@ -461,13 +394,10 @@ class ExpenseTracker {
         
         try {
             await window.gapi.client.request({
-                path: `https://www.googleapis.com/upload/drive/v3/files/${this.driveFiles[dataType]}`,
+                path: `/upload/drive/v3/files/${this.driveFiles[dataType]}`,
                 method: 'PATCH',
                 params: {
                     uploadType: 'media'
-                },
-                headers: {
-                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(data)
             });
@@ -525,7 +455,7 @@ class ExpenseTracker {
         const connectionStatus = document.getElementById('connection-status');
         const lastSync = document.getElementById('last-sync');
         const dataCount = document.getElementById('data-count');
-        const manualSyncBtn = document.querySelector('[onclick="app.manualSync()"]');
+        const manualSyncBtn = document.querySelector('#sync-settings-modal .btn--primary');
         
         if (connectionStatus) {
             connectionStatus.textContent = this.isGoogleConnected ? 'Google Drive Connected' : 'Local Storage Only';
@@ -564,8 +494,6 @@ class ExpenseTracker {
                     syncText.textContent = 'Syncing...';
                     break;
                 case 'offline':
-                    syncText.textContent = 'Local Storage Only';
-                    break;
                 default:
                     syncText.textContent = 'Local Storage Only';
             }
@@ -573,21 +501,21 @@ class ExpenseTracker {
     }
     
     updateSettingsView() {
-        const connectionStatus = document.getElementById('google-connection-status');
-        if (connectionStatus) {
-            const statusIndicator = connectionStatus.querySelector('.status-indicator');
-            const statusDot = connectionStatus.querySelector('.status-dot');
+        const statusContainer = document.getElementById('google-connection-status');
+        if (statusContainer) {
+            const statusIndicator = statusContainer.querySelector('.status-indicator');
+            const statusDot = statusContainer.querySelector('.status-dot');
             const statusText = statusIndicator?.querySelector('span:last-child');
             
             if (this.isGoogleConnected && statusDot && statusText) {
                 statusDot.className = 'status-dot online';
                 statusText.textContent = 'Connected to Google Drive';
-                const descP = connectionStatus.querySelector('p');
+                const descP = statusContainer.querySelector('p');
                 if (descP) descP.textContent = 'Your data is syncing with Google Drive automatically.';
             } else if (statusDot && statusText) {
                 statusDot.className = 'status-dot offline';
                 statusText.textContent = 'Not Connected';
-                const descP = connectionStatus.querySelector('p');
+                const descP = statusContainer.querySelector('p');
                 if (descP) descP.textContent = 'Connect to Google Drive to sync your data across devices.';
             }
         }
@@ -653,21 +581,16 @@ class ExpenseTracker {
     updatePaymentMethodDropdowns() {
         console.log('Updating payment method dropdowns, current methods:', this.paymentMethods);
         
-        // Update payment method dropdowns - make sure elements exist first
         const expenseDropdown = document.getElementById('expense-payment-method');
         const reminderDropdown = document.getElementById('reminder-payment-method');
         
-        // Clear and repopulate expense payment method dropdown
-        if (expenseDropdown) {
-            const currentValue = expenseDropdown.value; // Preserve selection if any
-            expenseDropdown.innerHTML = '<option value="">Select Payment Method</option>';
+        const populate = (dropdown) => {
+            if (!dropdown) return;
+            const currentValue = dropdown.value;
+            dropdown.innerHTML = '<option value="">Select Payment Method</option>';
             
             if (this.paymentMethods.length === 0) {
-                const noMethodOption = document.createElement('option');
-                noMethodOption.value = '';
-                noMethodOption.textContent = 'No payment methods available';
-                noMethodOption.disabled = true;
-                expenseDropdown.appendChild(noMethodOption);
+                dropdown.innerHTML += '<option value="" disabled>No payment methods</option>';
             } else {
                 this.paymentMethods.forEach(method => {
                     const option = document.createElement('option');
@@ -676,118 +599,64 @@ class ExpenseTracker {
                     if (method.id === currentValue) {
                         option.selected = true;
                     }
-                    expenseDropdown.appendChild(option);
+                    dropdown.appendChild(option);
                 });
             }
-            console.log('Expense dropdown updated with', this.paymentMethods.length, 'methods');
-        }
-        
-        // Clear and repopulate reminder payment method dropdown
-        if (reminderDropdown) {
-            const currentValue = reminderDropdown.value; // Preserve selection if any
-            reminderDropdown.innerHTML = '<option value="">Select Payment Method</option>';
-            
-            if (this.paymentMethods.length === 0) {
-                const noMethodOption = document.createElement('option');
-                noMethodOption.value = '';
-                noMethodOption.textContent = 'No payment methods available';
-                noMethodOption.disabled = true;
-                reminderDropdown.appendChild(noMethodOption);
-            } else {
-                this.paymentMethods.forEach(method => {
-                    const option = document.createElement('option');
-                    option.value = method.id;
-                    option.textContent = `${method.name}${method.lastFour ? ` (*${method.lastFour})` : ''}`;
-                    if (method.id === currentValue) {
-                        option.selected = true;
-                    }
-                    reminderDropdown.appendChild(option);
-                });
-            }
-            console.log('Reminder dropdown updated with', this.paymentMethods.length, 'methods');
-        }
+        };
+
+        populate(expenseDropdown);
+        populate(reminderDropdown);
     }
     
     showView(viewName) {
-        // Hide all views
-        document.querySelectorAll('.view').forEach(view => {
-            view.classList.remove('active');
-        });
-        
-        // Show selected view
+        document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
         const targetView = document.getElementById(viewName);
-        if (targetView) {
-            targetView.classList.add('active');
-        }
+        if (targetView) targetView.classList.add('active');
         
-        // Update navigation
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.classList.remove('active');
-        });
-        const activeNavItem = document.querySelector(`[data-view="${viewName}"]`);
-        if (activeNavItem) {
-            activeNavItem.classList.add('active');
-        }
+        document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+        const activeNavItem = document.querySelector(`.nav-item[data-view="${viewName}"]`);
+        if (activeNavItem) activeNavItem.classList.add('active');
         
         this.currentView = viewName;
         
-        // Update view-specific content and refresh dropdowns
-        if (viewName === 'dashboard') {
-            this.updateDashboard();
-        } else if (viewName === 'add-expense') {
-            // Always refresh payment method dropdowns when entering add expense view
-            this.setCurrentDate();
-            // Immediate dropdown update - no delay
-            this.updatePaymentMethodDropdowns();
-        } else if (viewName === 'payment-methods') {
-            this.updatePaymentMethodsList();
-        } else if (viewName === 'reminders') {
-            this.updateRemindersList();
-            // Refresh payment method dropdowns for reminder form
-            this.updatePaymentMethodDropdowns();
-        } else if (viewName === 'analytics') {
-            this.updateAnalytics();
-        } else if (viewName === 'settings') {
-            this.updateSettingsView();
+        switch(viewName) {
+            case 'dashboard': this.updateDashboard(); break;
+            case 'add-expense':
+                this.setCurrentDate();
+                this.updatePaymentMethodDropdowns();
+                break;
+            case 'payment-methods': this.updatePaymentMethodsList(); break;
+            case 'reminders':
+                this.updateRemindersList();
+                this.updatePaymentMethodDropdowns();
+                break;
+            case 'analytics': this.updateAnalytics(); break;
+            case 'settings': this.updateSettingsView(); break;
         }
     }
     
     async addExpense() {
+        const paymentMethodId = document.getElementById('expense-payment-method').value;
+        const paymentMethod = this.paymentMethods.find(m => m.id === paymentMethodId);
+
         const expense = {
-            id: Date.now(),
+            id: 'exp_' + Date.now(),
             date: document.getElementById('expense-date').value,
             amount: parseFloat(document.getElementById('expense-amount').value),
             description: document.getElementById('expense-description').value,
             category: document.getElementById('expense-category').value,
-            paymentMethod: document.getElementById('expense-payment-method').value,
-            paymentMethodName: this.getPaymentMethodName(document.getElementById('expense-payment-method').value),
+            paymentMethod: paymentMethodId,
+            paymentMethodName: paymentMethod ? paymentMethod.name : 'N/A',
             createdDate: new Date().toISOString()
         };
         
-        this.expenses.unshift(expense); // Add to beginning for recent display
+        this.expenses.unshift(expense);
         this.saveExpenses();
+        await this.syncDataToDrive('expenses', this.expenses);
+
         this.resetExpenseForm();
-        this.updateDashboard();
         this.showView('dashboard');
-        
-        // Auto-sync to Google Drive
-        if (this.isGoogleConnected) {
-            try {
-                await this.syncDataToDrive('expenses', this.expenses);
-                this.lastSyncTime = new Date().toISOString();
-                this.saveGoogleSettings();
-            } catch (error) {
-                console.error('Auto-sync failed:', error);
-            }
-        }
-        
-        // Show success message
         this.showMessage('Expense added successfully!', 'success');
-    }
-    
-    getPaymentMethodName(id) {
-        const method = this.paymentMethods.find(m => m.id === id);
-        return method ? method.name : '';
     }
     
     resetExpenseForm() {
@@ -800,7 +669,7 @@ class ExpenseTracker {
     
     async addPaymentMethod() {
         const paymentMethod = {
-            id: 'pm_' + Date.now().toString(),
+            id: 'pm_' + Date.now(),
             name: document.getElementById('pm-name').value,
             type: document.getElementById('pm-type').value,
             lastFour: document.getElementById('pm-last-four').value,
@@ -809,86 +678,49 @@ class ExpenseTracker {
             createdDate: new Date().toISOString()
         };
         
-        console.log('Adding payment method:', paymentMethod);
-        
         this.paymentMethods.push(paymentMethod);
         this.savePaymentMethods();
+        await this.syncDataToDrive('paymentMethods', this.paymentMethods);
         
-        // Update all relevant UI components immediately
-        this.updatePaymentMethodsList(); // Update the list view
-        this.updatePaymentMethodDropdowns(); // Update dropdowns immediately
+        this.updatePaymentMethodsList();
+        this.updatePaymentMethodDropdowns();
         this.hidePaymentMethodForm();
-        
-        // Auto-sync to Google Drive
-        if (this.isGoogleConnected) {
-            try {
-                await this.syncDataToDrive('paymentMethods', this.paymentMethods);
-                this.lastSyncTime = new Date().toISOString();
-                this.saveGoogleSettings();
-            } catch (error) {
-                console.error('Auto-sync failed:', error);
-            }
-        }
-        
         this.showMessage('Payment method added successfully!', 'success');
-        
-        console.log('Payment methods after adding:', this.paymentMethods);
     }
     
     async deletePaymentMethod(id) {
         if (confirm('Are you sure you want to delete this payment method?')) {
             this.paymentMethods = this.paymentMethods.filter(method => method.id !== id);
             this.savePaymentMethods();
+            await this.syncDataToDrive('paymentMethods', this.paymentMethods);
+
             this.updatePaymentMethodDropdowns();
             this.updatePaymentMethodsList();
-            
-            // Auto-sync to Google Drive
-            if (this.isGoogleConnected) {
-                try {
-                    await this.syncDataToDrive('paymentMethods', this.paymentMethods);
-                    this.lastSyncTime = new Date().toISOString();
-                    this.saveGoogleSettings();
-                } catch (error) {
-                    console.error('Auto-sync failed:', error);
-                }
-            }
-            
-            this.showMessage('Payment method deleted successfully!', 'success');
+            this.showMessage('Payment method deleted!', 'success');
         }
     }
     
     async setDefaultPaymentMethod(id) {
-        this.paymentMethods.forEach(method => {
-            method.isDefault = method.id === id;
-        });
+        this.paymentMethods.forEach(method => method.isDefault = (method.id === id));
         this.savePaymentMethods();
+        await this.syncDataToDrive('paymentMethods', this.paymentMethods);
+
         this.updatePaymentMethodsList();
-        
-        // Auto-sync to Google Drive
-        if (this.isGoogleConnected) {
-            try {
-                await this.syncDataToDrive('paymentMethods', this.paymentMethods);
-                this.lastSyncTime = new Date().toISOString();
-                this.saveGoogleSettings();
-            } catch (error) {
-                console.error('Auto-sync failed:', error);
-            }
-        }
-        
         this.showMessage('Default payment method updated!', 'success');
     }
     
     async addReminder() {
-        const reminderPaymentMethodId = document.getElementById('reminder-payment-method').value;
-        
+        const paymentMethodId = document.getElementById('reminder-payment-method').value;
+        const paymentMethod = this.paymentMethods.find(m => m.id === paymentMethodId);
+
         const reminder = {
-            id: Date.now(),
+            id: 'rem_' + Date.now(),
             name: document.getElementById('reminder-name').value,
             amount: parseFloat(document.getElementById('reminder-amount').value) || 0,
             dueDate: document.getElementById('reminder-due-date').value,
             recurrence: document.getElementById('reminder-recurrence').value,
-            paymentMethod: reminderPaymentMethodId,
-            paymentMethodName: this.getPaymentMethodName(reminderPaymentMethodId),
+            paymentMethod: paymentMethodId,
+            paymentMethodName: paymentMethod ? paymentMethod.name : 'N/A',
             reminderDays: parseInt(document.getElementById('reminder-days').value),
             isActive: true,
             createdDate: new Date().toISOString()
@@ -896,21 +728,11 @@ class ExpenseTracker {
         
         this.reminders.push(reminder);
         this.saveReminders();
+        await this.syncDataToDrive('reminders', this.reminders);
+
         this.updateRemindersList();
         this.hideReminderForm();
         this.updateDashboard();
-        
-        // Auto-sync to Google Drive
-        if (this.isGoogleConnected) {
-            try {
-                await this.syncDataToDrive('reminders', this.reminders);
-                this.lastSyncTime = new Date().toISOString();
-                this.saveGoogleSettings();
-            } catch (error) {
-                console.error('Auto-sync failed:', error);
-            }
-        }
-        
         this.showMessage('Reminder added successfully!', 'success');
     }
     
@@ -918,21 +740,11 @@ class ExpenseTracker {
         if (confirm('Are you sure you want to delete this reminder?')) {
             this.reminders = this.reminders.filter(reminder => reminder.id !== id);
             this.saveReminders();
+            await this.syncDataToDrive('reminders', this.reminders);
+
             this.updateRemindersList();
             this.updateDashboard();
-            
-            // Auto-sync to Google Drive
-            if (this.isGoogleConnected) {
-                try {
-                    await this.syncDataToDrive('reminders', this.reminders);
-                    this.lastSyncTime = new Date().toISOString();
-                    this.saveGoogleSettings();
-                } catch (error) {
-                    console.error('Auto-sync failed:', error);
-                }
-            }
-            
-            this.showMessage('Reminder deleted successfully!', 'success');
+            this.showMessage('Reminder deleted!', 'success');
         }
     }
     
@@ -940,39 +752,30 @@ class ExpenseTracker {
         const reminder = this.reminders.find(r => r.id === reminderId);
         if (!reminder) return;
         
-        // Create expense from reminder
         const expense = {
-            id: Date.now(),
+            id: 'exp_' + Date.now(),
             date: new Date().toISOString().split('T')[0],
             amount: reminder.amount,
             description: `${reminder.name} - Paid`,
-            category: 'Other',
+            category: 'EMI Payments',
             paymentMethod: reminder.paymentMethod,
             paymentMethodName: reminder.paymentMethodName,
             createdDate: new Date().toISOString()
         };
-        
         this.expenses.unshift(expense);
-        this.saveExpenses();
         
-        // Update reminder due date based on recurrence
-        const nextDueDate = this.calculateNextDueDate(reminder.dueDate, reminder.recurrence);
-        const reminderIndex = this.reminders.findIndex(r => r.id === reminder.id);
-        if (reminderIndex !== -1) {
-            this.reminders[reminderIndex].dueDate = nextDueDate;
-            this.saveReminders();
+        if (reminder.recurrence !== "One-time") {
+            reminder.dueDate = this.calculateNextDueDate(reminder.dueDate, reminder.recurrence);
+        } else {
+            this.reminders = this.reminders.filter(r => r.id !== reminderId);
         }
         
-        // Auto-sync both to Google Drive
+        this.saveExpenses();
+        this.saveReminders();
+        
         if (this.isGoogleConnected) {
-            try {
-                await this.syncDataToDrive('expenses', this.expenses);
-                await this.syncDataToDrive('reminders', this.reminders);
-                this.lastSyncTime = new Date().toISOString();
-                this.saveGoogleSettings();
-            } catch (error) {
-                console.error('Auto-sync failed:', error);
-            }
+            await this.syncDataToDrive('expenses', this.expenses);
+            await this.syncDataToDrive('reminders', this.reminders);
         }
         
         this.updateRemindersList();
@@ -982,52 +785,33 @@ class ExpenseTracker {
     
     calculateNextDueDate(currentDate, recurrence) {
         const date = new Date(currentDate);
+        date.setUTCDate(date.getUTCDate() + 1); // Fix off-by-one day issue with date parsing
         
         switch (recurrence) {
-            case 'Weekly':
-                date.setDate(date.getDate() + 7);
-                break;
-            case 'Bi-weekly':
-                date.setDate(date.getDate() + 14);
-                break;
-            case 'Monthly':
-                date.setMonth(date.getMonth() + 1);
-                break;
-            case 'Quarterly':
-                date.setMonth(date.getMonth() + 3);
-                break;
-            case 'Half-yearly':
-                date.setMonth(date.getMonth() + 6);
-                break;
-            case 'Yearly':
-                date.setFullYear(date.getFullYear() + 1);
-                break;
+            case 'Weekly': date.setDate(date.getDate() + 7); break;
+            case 'Bi-weekly': date.setDate(date.getDate() + 14); break;
+            case 'Monthly': date.setMonth(date.getMonth() + 1); break;
+            case 'Quarterly': date.setMonth(date.getMonth() + 3); break;
+            case 'Half-yearly': date.setMonth(date.getMonth() + 6); break;
+            case 'Yearly': date.setFullYear(date.getFullYear() + 1); break;
         }
-        
         return date.toISOString().split('T')[0];
     }
     
-    // Data Management Methods
     exportData() {
-        const data = {
+        const data = JSON.stringify({
             expenses: this.expenses,
             paymentMethods: this.paymentMethods,
-            reminders: this.reminders,
-            exportDate: new Date().toISOString()
-        };
+            reminders: this.reminders
+        }, null, 2);
         
-        const dataStr = JSON.stringify(data, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(dataBlob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `expense-tracker-data-${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `expense-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
         URL.revokeObjectURL(url);
-        
         this.showMessage('Data exported successfully!', 'success');
     }
     
@@ -1035,72 +819,49 @@ class ExpenseTracker {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json';
-        
-        input.onchange = async (e) => {
+        input.onchange = e => {
             const file = e.target.files[0];
-            if (!file) return;
-            
             const reader = new FileReader();
-            reader.onload = async (e) => {
+            reader.onload = async (event) => {
                 try {
-                    const data = JSON.parse(e.target.result);
-                    
-                    if (data.expenses) this.expenses = data.expenses;
-                    if (data.paymentMethods) this.paymentMethods = data.paymentMethods;
-                    if (data.reminders) this.reminders = data.reminders;
-                    
-                    this.saveData();
-                    this.updateDashboard();
-                    this.updatePaymentMethodDropdowns();
-                    
-                    // Auto-sync to Google Drive
-                    if (this.isGoogleConnected) {
+                    const data = JSON.parse(event.target.result);
+                    if (confirm('This will overwrite current data. Continue?')) {
+                        this.expenses = data.expenses || [];
+                        this.paymentMethods = data.paymentMethods || [];
+                        this.reminders = data.reminders || [];
+                        this.saveData();
                         await this.performFullSync();
+                        this.showView('dashboard');
+                        this.showMessage('Data imported successfully!', 'success');
                     }
-                    
-                    this.showMessage('Data imported successfully!', 'success');
-                } catch (error) {
-                    this.showMessage('Failed to import data. Please check the file format.', 'error');
+                } catch (err) {
+                    this.showMessage('Failed to import data.', 'error');
                 }
             };
             reader.readAsText(file);
         };
-        
         input.click();
     }
     
     async clearAllData() {
-        if (confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
+        if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
             this.expenses = [];
             this.paymentMethods = [];
             this.reminders = [];
-            
             this.saveData();
-            this.updateDashboard();
-            this.updatePaymentMethodDropdowns();
-            this.updatePaymentMethodsList();
-            this.updateRemindersList();
-            
-            // Auto-sync to Google Drive
-            if (this.isGoogleConnected) {
-                await this.performFullSync();
-            }
-            
-            this.showMessage('All data cleared successfully!', 'success');
+            await this.performFullSync();
+            this.showView('dashboard');
+            this.showMessage('All data has been cleared!', 'success');
         }
     }
     
-    // Remaining methods continue...
     formatCurrency(amount) {
-        return `${this.currencySymbol}${amount.toFixed(2)}`;
+        return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
     }
     
     formatDate(dateString) {
         const date = new Date(dateString);
-        const day = date.getDate().toString().padStart(2, '0');
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const year = date.getFullYear();
-        return `${day}/${month}/${year}`;
+        return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
     }
     
     updateDashboard() {
@@ -1110,184 +871,116 @@ class ExpenseTracker {
         this.updateUpcomingReminders();
     }
     
-    updateMonthlyTotal() {
-        const currentMonthExpenses = this.getCurrentMonthExpenses();
-        const total = currentMonthExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-        const totalElement = document.getElementById('monthly-total');
-        if (totalElement) {
-            totalElement.textContent = this.formatCurrency(total);
-        }
-    }
-    
     getCurrentMonthExpenses() {
-        const currentMonth = this.currentMonth.getMonth();
-        const currentYear = this.currentMonth.getFullYear();
-        
-        return this.expenses.filter(expense => {
-            const expenseDate = new Date(expense.date);
-            return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
+        const start = new Date(this.currentMonth.getFullYear(), this.currentMonth.getMonth(), 1);
+        const end = new Date(this.currentMonth.getFullYear(), this.currentMonth.getMonth() + 1, 0);
+        return this.expenses.filter(exp => {
+            const expDate = new Date(exp.date);
+            return expDate >= start && expDate <= end;
         });
+    }
+
+    updateMonthlyTotal() {
+        const total = this.getCurrentMonthExpenses().reduce((sum, exp) => sum + exp.amount, 0);
+        document.getElementById('monthly-total').textContent = this.formatCurrency(total);
     }
     
     updatePaymentBreakdown() {
         const container = document.getElementById('payment-breakdown');
-        if (!container) return;
-        
-        const currentMonthExpenses = this.getCurrentMonthExpenses();
-        
-        // If no payment methods exist, show appropriate message
-        if (this.paymentMethods.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <h4>No payment methods</h4>
-                    <p>${this.emptyStateMessages.paymentMethods}</p>
-                </div>
-            `;
+        const breakdown = this.getCurrentMonthExpenses().reduce((acc, exp) => {
+            const method = this.paymentMethods.find(m => m.id === exp.paymentMethod) || { name: 'Unknown', color: '#ccc' };
+            if (!acc[method.id]) acc[method.id] = { ...method, total: 0 };
+            acc[method.id].total += exp.amount;
+            return acc;
+        }, {});
+
+        if (Object.keys(breakdown).length === 0) {
+            container.innerHTML = `<div class="empty-state"><p>No expenses this month to show here.</p></div>`;
             return;
         }
-        
-        // Group expenses by payment method
-        const paymentTotals = {};
-        currentMonthExpenses.forEach(expense => {
-            if (!paymentTotals[expense.paymentMethod]) {
-                paymentTotals[expense.paymentMethod] = 0;
-            }
-            paymentTotals[expense.paymentMethod] += expense.amount;
-        });
-        
-        container.innerHTML = '';
-        
-        if (Object.keys(paymentTotals).length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <h4>No expenses this month</h4>
-                    <p>Your payment method usage will appear here</p>
+
+        container.innerHTML = Object.values(breakdown).map(item => `
+            <div class="payment-item">
+                <div class="payment-item__color" style="background-color: ${item.color};"></div>
+                <div class="payment-item__info">
+                    <div class="payment-item__name">${item.name}</div>
+                    <div class="payment-item__amount">${this.formatCurrency(item.total)}</div>
                 </div>
-            `;
-            return;
-        }
-        
-        Object.entries(paymentTotals).forEach(([methodId, total]) => {
-            const method = this.paymentMethods.find(m => m.id === methodId);
-            if (method) {
-                const item = document.createElement('div');
-                item.className = 'payment-item';
-                item.innerHTML = `
-                    <div class="payment-item__color" style="background: ${method.color}"></div>
-                    <div class="payment-item__info">
-                        <div class="payment-item__name">${method.name}</div>
-                        <div class="payment-item__amount">${this.formatCurrency(total)}</div>
-                    </div>
-                `;
-                container.appendChild(item);
-            }
-        });
+            </div>
+        `).join('');
     }
     
     updateRecentTransactions() {
         const container = document.getElementById('recent-transactions');
-        if (!container) return;
-        
-        const recentExpenses = this.expenses
-            .sort((a, b) => new Date(b.date) - new Date(a.date))
-            .slice(0, 10);
-        
-        container.innerHTML = '';
-        
-        if (recentExpenses.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <h4>No transactions yet</h4>
-                    <p>${this.emptyStateMessages.expenses}</p>
-                </div>
-            `;
+        const recent = [...this.expenses].sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+
+        if (recent.length === 0) {
+            container.innerHTML = `<div class="empty-state"><h4>No transactions yet</h4><p>${this.emptyStateMessages.expenses}</p></div>`;
             return;
         }
-        
-        recentExpenses.forEach(expense => {
-            const item = document.createElement('div');
-            item.className = 'transaction-item';
-            item.innerHTML = `
+
+        container.innerHTML = recent.map(exp => `
+            <div class="transaction-item">
                 <div class="transaction-info">
-                    <h4>${expense.description}</h4>
+                    <h4>${exp.description}</h4>
                     <div class="transaction-meta">
-                        <span>${this.formatDate(expense.date)}</span>
-                        <span>${expense.category}</span>
-                        <span>${expense.paymentMethodName}</span>
+                        <span>${this.formatDate(exp.date)}</span>
+                        <span>• ${exp.category}</span>
+                        <span>• ${exp.paymentMethodName}</span>
                     </div>
                 </div>
-                <div class="transaction-amount">-${this.formatCurrency(expense.amount)}</div>
-            `;
-            container.appendChild(item);
-        });
+                <div class="transaction-amount">-${this.formatCurrency(exp.amount)}</div>
+            </div>
+        `).join('');
     }
     
     updateUpcomingReminders() {
         const container = document.getElementById('upcoming-reminders');
-        if (!container) return;
-        
         const today = new Date();
-        const upcomingReminders = this.reminders
-            .filter(reminder => {
-                const dueDate = new Date(reminder.dueDate);
-                const daysDiff = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
-                return reminder.isActive && daysDiff <= reminder.reminderDays;
+        today.setHours(0,0,0,0);
+        
+        const upcoming = this.reminders
+            .map(rem => {
+                const dueDate = new Date(rem.dueDate);
+                const diff = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+                return { ...rem, daysUntilDue: diff };
             })
-            .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-        
-        container.innerHTML = '';
-        
-        if (upcomingReminders.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <h4>No upcoming payments</h4>
-                    <p>${this.emptyStateMessages.reminders}</p>
-                </div>
-            `;
+            .filter(rem => rem.daysUntilDue >= 0 && rem.daysUntilDue <= (rem.reminderDays || 7))
+            .sort((a,b) => a.daysUntilDue - b.daysUntilDue);
+
+        if (upcoming.length === 0) {
+            container.innerHTML = `<div class="empty-state"><h4>All clear!</h4><p>No upcoming payments due soon.</p></div>`;
             return;
         }
-        
-        upcomingReminders.forEach(reminder => {
-            const dueDate = new Date(reminder.dueDate);
-            const daysDiff = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
-            
-            const item = document.createElement('div');
-            item.className = 'reminder-item';
-            item.innerHTML = `
-                <div class="reminder-info">
-                    <h4>${reminder.name}</h4>
-                    <div class="reminder-due">Due: ${this.formatDate(reminder.dueDate)} (${daysDiff === 0 ? 'Today' : daysDiff === 1 ? 'Tomorrow' : `${daysDiff} days`})</div>
+
+        container.innerHTML = upcoming.map(rem => {
+            let dueText = `in ${rem.daysUntilDue} days`;
+            if (rem.daysUntilDue === 0) dueText = 'Today';
+            if (rem.daysUntilDue === 1) dueText = 'Tomorrow';
+            return `
+                <div class="reminder-item">
+                    <div class="reminder-info">
+                        <h4>${rem.name}</h4>
+                        <div class="reminder-due">Due: ${this.formatDate(rem.dueDate)} (${dueText})</div>
+                    </div>
+                    <div class="reminder-amount">${this.formatCurrency(rem.amount)}</div>
                 </div>
-                <div class="reminder-amount">${this.formatCurrency(reminder.amount)}</div>
             `;
-            container.appendChild(item);
-        });
+        }).join('');
     }
     
     updatePaymentMethodsList() {
         const container = document.getElementById('payment-methods-list');
-        if (!container) return;
-        
-        container.innerHTML = '';
-        
         if (this.paymentMethods.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <h3>No payment methods</h3>
-                    <p>${this.emptyStateMessages.paymentMethods}</p>
-                    <button class="btn btn--primary" onclick="showAddPaymentMethodForm()">Add First Payment Method</button>
-                </div>
-            `;
+            container.innerHTML = `<div class="empty-state"><h3>No payment methods</h3><p>${this.emptyStateMessages.paymentMethods}</p><button class="btn btn--primary" onclick="showAddPaymentMethodForm()">Add First Method</button></div>`;
             return;
         }
         
-        this.paymentMethods.forEach(method => {
-            const card = document.createElement('div');
-            card.className = 'payment-method-card';
-            card.innerHTML = `
+        container.innerHTML = this.paymentMethods.map(method => `
+            <div class="payment-method-card">
                 ${method.isDefault ? '<div class="default-badge">Default</div>' : ''}
                 <div class="payment-method-header">
-                    <div class="payment-method-color" style="background: ${method.color}"></div>
+                    <div class="payment-method-color" style="background-color: ${method.color};"></div>
                     <div class="payment-method-name">${method.name}</div>
                 </div>
                 <div class="payment-method-details">
@@ -1295,206 +988,101 @@ class ExpenseTracker {
                     ${method.lastFour ? `<div>**** ${method.lastFour}</div>` : ''}
                 </div>
                 <div class="payment-method-actions">
-                    <button onclick="app.setDefaultPaymentMethod('${method.id}')" title="Set as default">⭐ Default</button>
-                    <button onclick="app.deletePaymentMethod('${method.id}')" title="Delete">🗑️ Delete</button>
+                    ${!method.isDefault ? `<button class="btn btn--sm" onclick="app.setDefaultPaymentMethod('${method.id}')" title="Set as default">⭐</button>` : ''}
+                    <button class="btn btn--sm btn--outline" onclick="app.deletePaymentMethod('${method.id}')" title="Delete">🗑️</button>
                 </div>
-            `;
-            container.appendChild(card);
-        });
+            </div>
+        `).join('');
     }
     
     updateRemindersList() {
         const container = document.getElementById('reminders-list');
-        if (!container) return;
-        
-        const today = new Date();
-        
-        container.innerHTML = '';
-        
         if (this.reminders.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <h3>No reminders</h3>
-                    <p>${this.emptyStateMessages.reminders}</p>
-                    <button class="btn btn--primary" onclick="showAddReminderForm()">Add First Reminder</button>
-                </div>
-            `;
+            container.innerHTML = `<div class="empty-state"><h3>No reminders</h3><p>${this.emptyStateMessages.reminders}</p><button class="btn btn--primary" onclick="showAddReminderForm()">Add First Reminder</button></div>`;
             return;
         }
+
+        const today = new Date();
+        today.setHours(0,0,0,0);
         
-        this.reminders.forEach(reminder => {
+        const sortedReminders = [...this.reminders].sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+        container.innerHTML = sortedReminders.map(reminder => {
             const dueDate = new Date(reminder.dueDate);
-            const daysDiff = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
-            
-            let statusClass = '';
-            if (daysDiff < 0) statusClass = 'overdue';
-            else if (daysDiff <= reminder.reminderDays) statusClass = 'due-soon';
-            
-            const card = document.createElement('div');
-            card.className = `reminder-card ${statusClass}`;
-            card.innerHTML = `
-                <div class="reminder-header">
-                    <div class="reminder-title">${reminder.name}</div>
-                    <div class="reminder-due-date">Due: ${this.formatDate(reminder.dueDate)}</div>
-                </div>
-                <div class="reminder-body">
-                    <div class="reminder-amount-display">${this.formatCurrency(reminder.amount)}</div>
-                    <div class="reminder-recurrence">${reminder.recurrence} • ${reminder.paymentMethodName}</div>
-                </div>
-                <div class="reminder-actions">
-                    <button class="btn btn--primary btn--sm" onclick="app.markReminderPaid(${reminder.id})">Mark as Paid</button>
-                    <button class="btn btn--outline btn--sm" onclick="app.deleteReminder(${reminder.id})">Delete</button>
+            const isOverdue = dueDate < today;
+            return `
+                <div class="reminder-card ${isOverdue ? 'overdue' : ''}">
+                    <div class="reminder-header">
+                        <div class="reminder-title">${reminder.name}</div>
+                        <div class="reminder-due-date">Due: ${this.formatDate(reminder.dueDate)} ${isOverdue ? '(Overdue)' : ''}</div>
+                    </div>
+                    <div class="reminder-body">
+                        <div class="reminder-amount-display">${this.formatCurrency(reminder.amount)}</div>
+                        <div class="reminder-recurrence">${reminder.recurrence} • ${reminder.paymentMethodName}</div>
+                    </div>
+                    <div class="reminder-actions">
+                        <button class="btn btn--primary btn--sm" onclick="app.markReminderPaid('${reminder.id}')">Mark as Paid</button>
+                        <button class="btn btn--outline btn--sm" onclick="app.deleteReminder('${reminder.id}')">Delete</button>
+                    </div>
                 </div>
             `;
-            container.appendChild(card);
-        });
+        }).join('');
     }
     
     updateAnalytics() {
-        const currentMonthExpenses = this.getCurrentMonthExpenses();
-        
-        if (currentMonthExpenses.length === 0) {
-            const analyticsContent = document.getElementById('analytics-content');
-            if (analyticsContent) {
-                analyticsContent.innerHTML = `
-                    <div class="empty-state">
-                        <h3>No data available</h3>
-                        <p>${this.emptyStateMessages.analytics}</p>
-                    </div>
-                `;
-            }
+        const expenses = this.getCurrentMonthExpenses();
+        const analyticsContent = document.getElementById('analytics-content');
+        if (expenses.length === 0) {
+            analyticsContent.innerHTML = `<div class="empty-state card"><h3>No data for this month</h3><p>${this.emptyStateMessages.analytics}</p></div>`;
+            if (this.categoryChart) this.categoryChart.destroy();
+            if (this.paymentChart) this.paymentChart.destroy();
             return;
         }
-        
-        // Restore the charts container if it was replaced by empty state
+
         if (!document.getElementById('category-chart')) {
-            const analyticsContent = document.getElementById('analytics-content');
-            if (analyticsContent) {
-                analyticsContent.innerHTML = `
-                    <div class="card">
-                        <div class="card__body">
-                            <h3>Spending by Category</h3>
-                            <div class="chart-container" style="position: relative; height: 300px;">
-                                <canvas id="category-chart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card">
-                        <div class="card__body">
-                            <h3>Payment Method Usage</h3>
-                            <div class="chart-container" style="position: relative; height: 300px;">
-                                <canvas id="payment-method-chart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
+            analyticsContent.innerHTML = `
+                <div class="card"><div class="card__body"><h3>Spending by Category</h3><div class="chart-container" style="position: relative; height: 300px;"><canvas id="category-chart"></canvas></div></div></div>
+                <div class="card"><div class="card__body"><h3>Payment Method Usage</h3><div class="chart-container" style="position: relative; height: 300px;"><canvas id="payment-method-chart"></canvas></div></div></div>
+            `;
         }
         
-        this.updateCategoryChart();
-        this.updatePaymentMethodChart();
+        this.renderCategoryChart(expenses);
+        this.renderPaymentMethodChart(expenses);
     }
     
-    updateCategoryChart() {
-        const currentMonthExpenses = this.getCurrentMonthExpenses();
-        const categoryTotals = {};
+    renderCategoryChart(expenses) {
+        const totals = expenses.reduce((acc, exp) => {
+            acc[exp.category] = (acc[exp.category] || 0) + exp.amount;
+            return acc;
+        }, {});
         
-        currentMonthExpenses.forEach(expense => {
-            if (!categoryTotals[expense.category]) {
-                categoryTotals[expense.category] = 0;
-            }
-            categoryTotals[expense.category] += expense.amount;
-        });
-        
-        const ctx = document.getElementById('category-chart');
-        if (!ctx) return;
-        
-        if (this.categoryChart) {
-            this.categoryChart.destroy();
-        }
-        
-        this.categoryChart = new Chart(ctx.getContext('2d'), {
+        const ctx = document.getElementById('category-chart').getContext('2d');
+        if (this.categoryChart) this.categoryChart.destroy();
+        this.categoryChart = new Chart(ctx, {
             type: 'pie',
             data: {
-                labels: Object.keys(categoryTotals),
-                datasets: [{
-                    data: Object.values(categoryTotals),
-                    backgroundColor: ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F', '#DB4545', '#D2BA4C', '#964325', '#944454', '#13343B']
-                }]
+                labels: Object.keys(totals),
+                datasets: [{ data: Object.values(totals), backgroundColor: ['#32B8C6', '#2D9A6D', '#F2C94C', '#EB5757', '#56CCF2', '#BB6BD9'] }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: (context) => {
-                                return `${context.label}: ${this.formatCurrency(context.raw)}`;
-                            }
-                        }
-                    }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false }
         });
     }
-    
-    updatePaymentMethodChart() {
-        const currentMonthExpenses = this.getCurrentMonthExpenses();
-        const paymentTotals = {};
-        
-        currentMonthExpenses.forEach(expense => {
-            if (!paymentTotals[expense.paymentMethodName]) {
-                paymentTotals[expense.paymentMethodName] = 0;
-            }
-            paymentTotals[expense.paymentMethodName] += expense.amount;
-        });
-        
-        const ctx = document.getElementById('payment-method-chart');
-        if (!ctx) return;
-        
-        if (this.paymentChart) {
-            this.paymentChart.destroy();
-        }
-        
-        this.paymentChart = new Chart(ctx.getContext('2d'), {
+
+    renderPaymentMethodChart(expenses) {
+        const totals = expenses.reduce((acc, exp) => {
+            acc[exp.paymentMethodName] = (acc[exp.paymentMethodName] || 0) + exp.amount;
+            return acc;
+        }, {});
+
+        const ctx = document.getElementById('payment-method-chart').getContext('2d');
+        if (this.paymentChart) this.paymentChart.destroy();
+        this.paymentChart = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: Object.keys(paymentTotals),
-                datasets: [{
-                    label: 'Amount Spent',
-                    data: Object.values(paymentTotals),
-                    backgroundColor: ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F']
-                }]
+                labels: Object.keys(totals),
+                datasets: [{ label: 'Amount Spent', data: Object.values(totals), backgroundColor: '#2D9A6D' }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: (context) => {
-                                return `Amount: ${this.formatCurrency(context.raw)}`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: (value) => {
-                                return this.formatCurrency(value);
-                            }
-                        }
-                    }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
         });
     }
     
@@ -1502,135 +1090,55 @@ class ExpenseTracker {
         this.currentMonth.setMonth(this.currentMonth.getMonth() + direction);
         this.updateCurrentMonthDisplay();
         this.updateDashboard();
-        if (this.currentView === 'analytics') {
-            this.updateAnalytics();
-        }
+        if (this.currentView === 'analytics') this.updateAnalytics();
     }
     
     updateCurrentMonthDisplay() {
-        const monthNames = ["January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"];
-        const display = `${monthNames[this.currentMonth.getMonth()]} ${this.currentMonth.getFullYear()}`;
-        const displayElement = document.getElementById('current-month-display');
-        if (displayElement) {
-            displayElement.textContent = display;
-        }
+        const display = this.currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+        document.getElementById('current-month-display').textContent = display;
     }
     
     showAddPaymentMethodForm() {
-        const modal = document.getElementById('payment-method-modal');
-        const form = document.getElementById('payment-method-form');
-        if (modal && form) {
-            modal.classList.remove('hidden');
-            form.reset();
-        }
+        document.getElementById('payment-method-modal').classList.remove('hidden');
+        document.getElementById('payment-method-form').reset();
     }
     
     hidePaymentMethodForm() {
-        const modal = document.getElementById('payment-method-modal');
-        if (modal) {
-            modal.classList.add('hidden');
-        }
+        document.getElementById('payment-method-modal').classList.add('hidden');
     }
     
     showAddReminderForm() {
-        const modal = document.getElementById('reminder-modal');
-        const form = document.getElementById('reminder-form');
-        if (modal && form) {
-            modal.classList.remove('hidden');
-            form.reset();
-            this.setCurrentDate();
-            // Ensure dropdowns are populated when reminder form opens
-            this.updatePaymentMethodDropdowns();
-        }
+        document.getElementById('reminder-modal').classList.remove('hidden');
+        document.getElementById('reminder-form').reset();
+        this.setCurrentDate();
+        this.updatePaymentMethodDropdowns();
     }
     
     hideReminderForm() {
-        const modal = document.getElementById('reminder-modal');
-        if (modal) {
-            modal.classList.add('hidden');
-        }
+        document.getElementById('reminder-modal').classList.add('hidden');
     }
     
     showMessage(message, type = 'info') {
-        // Remove any existing messages first
-        document.querySelectorAll('.temp-message').forEach(msg => msg.remove());
-        
-        // Create a temporary message element
+        const container = document.body;
         const messageEl = document.createElement('div');
         messageEl.className = `status status--${type} temp-message`;
         messageEl.textContent = message;
-        messageEl.style.cssText = `
-            position: fixed;
-            top: 80px;
-            right: 20px;
-            z-index: 9999;
-            max-width: 300px;
-        `;
-        
-        document.body.appendChild(messageEl);
-        
-        setTimeout(() => {
-            if (document.body.contains(messageEl)) {
-                document.body.removeChild(messageEl);
-            }
-        }, 3000);
+        messageEl.style.cssText = `position: fixed; top: 80px; right: 20px; z-index: 9999;`;
+        container.appendChild(messageEl);
+        setTimeout(() => messageEl.remove(), 3000);
     }
 }
-
-// Global initClient function that gets called after gapi is loaded
-window.initClient = async function() {
-    console.log('initClient called');
-    if (window.app) {
-        await window.app.initializeGoogleDrive();
-    }
-};
 
 // Global functions for template usage
-function showView(viewName) {
-    if (window.app) {
-        window.app.showView(viewName);
-    }
-}
-
-function resetExpenseForm() {
-    if (window.app) {
-        window.app.resetExpenseForm();
-    }
-}
-
-function showAddPaymentMethodForm() {
-    if (window.app) {
-        window.app.showAddPaymentMethodForm();
-    }
-}
-
-function hidePaymentMethodForm() {
-    if (window.app) {
-        window.app.hidePaymentMethodForm();
-    }
-}
-
-function showAddReminderForm() {
-    if (window.app) {
-        window.app.showAddReminderForm();
-    }
-}
-
-function hideReminderForm() {
-    if (window.app) {
-        window.app.hideReminderForm();
-    }
-}
-
-function changeMonth(direction) {
-    if (window.app) {
-        window.app.changeMonth(direction);
-    }
-}
+function showView(viewName) { window.app?.showView(viewName); }
+function resetExpenseForm() { window.app?.resetExpenseForm(); }
+function showAddPaymentMethodForm() { window.app?.showAddPaymentMethodForm(); }
+function hidePaymentMethodForm() { window.app?.hidePaymentMethodForm(); }
+function showAddReminderForm() { window.app?.showAddReminderForm(); }
+function hideReminderForm() { window.app?.hideReminderForm(); }
+function changeMonth(direction) { window.app?.changeMonth(direction); }
 
 // Initialize the app when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM ready');
     window.app = new ExpenseTracker();
 });
