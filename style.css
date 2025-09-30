@@ -738,7 +738,7 @@ select.form-control {
 }
 
 /* END PERPLEXITY DESIGN SYSTEM */
-/* Mobile-First Expense Tracker Styles with Google Sheets Integration */
+/* Mobile-First Expense Tracker Styles with Google Drive Integration */
 
 /* App-specific styles */
 .app-container {
@@ -749,7 +749,7 @@ select.form-control {
   padding-bottom: 80px; /* Space for bottom navigation */
 }
 
-/* Google Sheets Authentication Banner */
+/* Google Drive Authentication Banner */
 .auth-banner {
   background: var(--color-bg-1);
   border-bottom: 1px solid var(--color-border);
@@ -1328,39 +1328,6 @@ select.form-control {
   text-align: center;
 }
 
-/* Google Setup Modal Content */
-.setup-content {
-  max-height: 70vh;
-  overflow-y: auto;
-}
-
-.setup-step {
-  margin-bottom: var(--space-24);
-  padding-bottom: var(--space-16);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.setup-step:last-of-type {
-  border-bottom: none;
-  margin-bottom: var(--space-16);
-}
-
-.setup-step h4 {
-  margin-bottom: var(--space-8);
-  color: var(--color-primary);
-}
-
-.setup-step p {
-  margin-bottom: var(--space-12);
-  color: var(--color-text-secondary);
-  line-height: 1.6;
-}
-
-.setup-step a {
-  color: var(--color-primary);
-  text-decoration: underline;
-}
-
 /* Sync Settings Modal Content */
 .sync-settings-content {
   max-width: 100%;
@@ -1533,6 +1500,15 @@ select.form-control {
 
 .status-dot.inactive {
   background: var(--color-text-secondary);
+}
+
+/* Drive folder info */
+.drive-folder-info {
+  background: var(--color-bg-3);
+  padding: var(--space-12);
+  border-radius: var(--radius-base);
+  margin-bottom: var(--space-16);
+  font-size: var(--font-size-sm);
 }
 
 /* Responsive Design - Tablet and Desktop */

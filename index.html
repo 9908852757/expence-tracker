@@ -4,21 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Expense Tracker - Track Your Expenses in Rupees</title>
-    <meta name="description" content="Track your daily expenses in Indian Rupees with Google Sheets integration">
+    <meta name="description" content="Track your daily expenses in Indian Rupees with Google Drive integration">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://apis.google.com/js/api.js"></script>
 </head>
 <body>
     <div class="app-container">
-        <!-- Google Sheets Authentication Banner -->
+        <!-- Google Drive Authentication Banner -->
         <div id="auth-banner" class="auth-banner">
             <div class="auth-content">
                 <div class="auth-message">
-                    <span class="auth-icon">📊</span>
-                    <span>Connect to Google Sheets for cloud sync</span>
+                    <span class="auth-icon">☁️</span>
+                    <span>Connect to Google Drive for cloud sync</span>
                 </div>
-                <button class="btn btn--primary btn--sm" onclick="app.showGoogleSetup()">Connect</button>
+                <button class="btn btn--primary btn--sm" onclick="app.connectGoogleDrive()">Connect Drive</button>
             </div>
         </div>
 
@@ -330,15 +330,15 @@
                 <div class="settings-grid">
                     <div class="card">
                         <div class="card__body">
-                            <h3>Google Sheets Integration</h3>
+                            <h3>Google Drive Integration</h3>
                             <div id="google-connection-status" class="connection-status">
                                 <div class="status-indicator">
                                     <span class="status-dot offline"></span>
                                     <span>Not Connected</span>
                                 </div>
-                                <p>Connect to Google Sheets to sync your data across devices.</p>
+                                <p>Connect to Google Drive to sync your data across devices.</p>
                                 <div class="settings-actions">
-                                    <button class="btn btn--primary" onclick="app.showGoogleSetup()">Connect to Google Sheets</button>
+                                    <button class="btn btn--primary" onclick="app.connectGoogleDrive()">Connect to Google Drive</button>
                                     <button class="btn btn--outline" onclick="app.exportData()">Export Data</button>
                                 </div>
                             </div>
@@ -361,43 +361,6 @@
             </div>
         </main>
 
-        <!-- Google Sheets Setup Modal -->
-        <div id="google-setup-modal" class="modal hidden">
-            <div class="modal__overlay" onclick="app.hideGoogleSetup()"></div>
-            <div class="modal__content">
-                <h3>Google Sheets Integration Setup</h3>
-                <div class="setup-content">
-                    <div class="setup-step">
-                        <h4>Step 1: Google Cloud Console</h4>
-                        <p>Go to <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a> and create a new project or select an existing one.</p>
-                    </div>
-                    
-                    <div class="setup-step">
-                        <h4>Step 2: Enable APIs</h4>
-                        <p>Enable the Google Sheets API and Google Drive API for your project.</p>
-                    </div>
-                    
-                    <div class="setup-step">
-                        <h4>Step 3: Create Credentials</h4>
-                        <p>Create OAuth 2.0 credentials (Web Application) and add your domain to authorized JavaScript origins.</p>
-                    </div>
-                    
-                    <div class="setup-step">
-                        <h4>Step 4: Configure Client ID</h4>
-                        <div class="form-group">
-                            <label class="form-label" for="client-id">Google Client ID</label>
-                            <input type="text" id="client-id" class="form-control" placeholder="Your Google OAuth Client ID">
-                        </div>
-                    </div>
-                    
-                    <div class="form-actions">
-                        <button class="btn btn--primary" onclick="app.connectGoogleSheets()">Connect</button>
-                        <button class="btn btn--secondary" onclick="app.hideGoogleSetup()">Cancel</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Sync Settings Modal -->
         <div id="sync-settings-modal" class="modal hidden">
             <div class="modal__overlay" onclick="app.hideSyncSettings()"></div>
@@ -418,11 +381,15 @@
                             <span>Data Records:</span>
                             <span id="data-count">0 expenses, 0 methods, 0 reminders</span>
                         </div>
+                        <div class="status-row">
+                            <span>Drive Folder:</span>
+                            <span id="drive-folder">ExpenseTracker</span>
+                        </div>
                     </div>
                     
                     <div class="sync-actions">
                         <button class="btn btn--primary" onclick="app.manualSync()" disabled>Manual Sync</button>
-                        <button class="btn btn--secondary" onclick="app.showGoogleSetup()">Setup Google Sheets</button>
+                        <button class="btn btn--secondary" onclick="app.connectGoogleDrive()">Setup Google Drive</button>
                         <button class="btn btn--outline" onclick="app.hideSyncSettings()">Close</button>
                     </div>
                 </div>
