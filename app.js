@@ -103,8 +103,51 @@ class ExpenseTracker {
         this.updateCurrentMonthDisplay();
         this.updateSyncStatus();
         this.setupTouchEvents();
-        // Initialize Google API after a short delay to ensure DOM is ready
-        setTimeout(() => this.initializeGoogleAPI(), 1000);
+        // Google Drive initialization is now deferred to initClient()
+    }
+    
+    async initializeGoogleDrive() {
+        try {
+            // Wait for Google API to be available
+            if (typeof window.gapi === 'undefined') {
+                console.log('Google API not available yet');
+                return;
+            }
+            
+            // Wait for gapi to load auth2 and client
+            await new Promise((resolve, reject) => {
+                window.gapi.load('auth2:client', {
+                    callback: resolve,
+                    onerror: reject
+                });
+            });
+            
+            await window.gapi.client.init({
+                clientId: this.googleCredentials.clientId,
+                scope: this.googleCredentials.scopes.join(' '),
+                discoveryDocs: this.googleCredentials.discoveryDocs
+            });
+            
+            this.googleAuth = window.gapi.auth2.getAuthInstance();
+            
+            // Check if already signed in
+            if (this.googleAuth.isSignedIn.get()) {
+                this.isGoogleConnected = true;
+                this.syncStatus = 'online';
+                this.hideAuthBanner();
+                await this.setupDriveFolder();
+                this.updateSyncStatus();
+            }
+            
+            console.log('Google API initialized successfully');
+            
+        } catch (error) {
+            console.error('Google API initialization failed:', error);
+            this.syncStatus = 'error';
+            this.updateSyncStatus();
+            // Show user-friendly message instead of technical error
+            this.showMessage('Google Drive setup is temporarily unavailable. Your data will be saved locally.', 'warning');
+        }
     }
     
     loadData() {
@@ -223,48 +266,6 @@ class ExpenseTracker {
         document.addEventListener('touchstart', function(){}, {passive: true});
     }
     
-    async initializeGoogleAPI() {
-        try {
-            // Wait for Google API to be available
-            if (typeof window.gapi === 'undefined') {
-                console.log('Google API not available yet');
-                return;
-            }
-            
-            await new Promise((resolve) => {
-                window.gapi.load('auth2', resolve);
-            });
-            
-            await new Promise((resolve) => {
-                window.gapi.load('client', resolve);
-            });
-            
-            await window.gapi.client.init({
-                clientId: this.googleCredentials.clientId,
-                scope: this.googleCredentials.scopes.join(' '),
-                discoveryDocs: this.googleCredentials.discoveryDocs
-            });
-            
-            this.googleAuth = window.gapi.auth2.getAuthInstance();
-            
-            // Check if already signed in
-            if (this.googleAuth.isSignedIn.get()) {
-                this.isGoogleConnected = true;
-                this.syncStatus = 'online';
-                this.hideAuthBanner();
-                await this.setupDriveFolder();
-                this.updateSyncStatus();
-            }
-            
-            console.log('Google API initialized successfully');
-            
-        } catch (error) {
-            console.error('Google API initialization failed:', error);
-            this.syncStatus = 'error';
-            this.updateSyncStatus();
-        }
-    }
-    
     async connectGoogleDrive() {
         try {
             this.syncStatus = 'syncing';
@@ -272,7 +273,7 @@ class ExpenseTracker {
             this.showMessage('Connecting to Google Drive...', 'info');
             
             if (!this.googleAuth) {
-                await this.initializeGoogleAPI();
+                await this.initializeGoogleDrive();
             }
             
             if (!this.googleAuth) {
@@ -302,7 +303,7 @@ class ExpenseTracker {
             console.error('Google Drive connection failed:', error);
             this.syncStatus = 'error';
             this.updateSyncStatus();
-            this.showMessage('Failed to connect to Google Drive. Please try again.', 'error');
+            this.showMessage('Google Drive connection is temporarily unavailable. Your data will be saved locally.', 'warning');
         }
     }
     
@@ -663,6 +664,10 @@ class ExpenseTracker {
                 }
                 expenseDropdown.appendChild(option);
             });
+            
+            // Force refresh of the dropdown to ensure it's interactive
+            expenseDropdown.style.pointerEvents = 'auto';
+            expenseDropdown.disabled = false;
         }
         
         // Clear and repopulate reminder payment method dropdown
@@ -678,7 +683,21 @@ class ExpenseTracker {
                 }
                 reminderDropdown.appendChild(option);
             });
+            
+            // Force refresh of the dropdown to ensure it's interactive
+            reminderDropdown.style.pointerEvents = 'auto';
+            reminderDropdown.disabled = false;
         }
+        
+        // Trigger a change event to ensure dropdowns are properly initialized
+        setTimeout(() => {
+            if (expenseDropdown) {
+                expenseDropdown.dispatchEvent(new Event('change'));
+            }
+            if (reminderDropdown) {
+                reminderDropdown.dispatchEvent(new Event('change'));
+            }
+        }, 10);
     }
     
     showView(viewName) {
@@ -709,14 +728,17 @@ class ExpenseTracker {
             this.updateDashboard();
         } else if (viewName === 'add-expense') {
             // Always refresh payment method dropdowns when entering add expense view
-            setTimeout(() => this.updatePaymentMethodDropdowns(), 100);
             this.setCurrentDate();
+            // Delay dropdown update to ensure view is fully loaded
+            setTimeout(() => {
+                this.updatePaymentMethodDropdowns();
+            }, 200);
         } else if (viewName === 'payment-methods') {
             this.updatePaymentMethodsList();
         } else if (viewName === 'reminders') {
             this.updateRemindersList();
             // Refresh payment method dropdowns for reminder form
-            setTimeout(() => this.updatePaymentMethodDropdowns(), 100);
+            setTimeout(() => this.updatePaymentMethodDropdowns(), 200);
         } else if (viewName === 'analytics') {
             this.updateAnalytics();
         } else if (viewName === 'settings') {
@@ -785,7 +807,6 @@ class ExpenseTracker {
         this.savePaymentMethods();
         
         // Update all relevant UI components immediately
-        this.updatePaymentMethodDropdowns(); // Update dropdowns immediately
         this.updatePaymentMethodsList(); // Update the list view
         this.hidePaymentMethodForm();
         
@@ -802,7 +823,7 @@ class ExpenseTracker {
         
         this.showMessage('Payment method added successfully!', 'success');
         
-        // Force refresh dropdowns after a delay to ensure they're populated
+        // Force refresh dropdowns after payment method is added
         setTimeout(() => {
             this.updatePaymentMethodDropdowns();
         }, 100);
@@ -1547,6 +1568,13 @@ class ExpenseTracker {
         }, 3000);
     }
 }
+
+// Global initClient function that gets called after gapi is loaded
+window.initClient = async function() {
+    if (window.app) {
+        await window.app.initializeGoogleDrive();
+    }
+};
 
 // Global functions for template usage
 function showView(viewName) {

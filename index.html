@@ -7,7 +7,39 @@
     <meta name="description" content="Track your daily expenses in Indian Rupees with Google Drive integration">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://apis.google.com/js/api.js"></script>
+    <script async defer src="https://apis.google.com/js/api.js" onload="document.dispatchEvent(new Event('gapi_loaded'))"></script>
+    <script src="app.js"></script>
+    <script>
+        // Wait for both DOM and gapi to be ready
+        let domReady = false;
+        let gapiReady = false;
+        
+        function checkReadyAndInit() {
+            if (domReady && gapiReady && window.initClient) {
+                window.initClient();
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            domReady = true;
+            checkReadyAndInit();
+        });
+        
+        document.addEventListener('gapi_loaded', () => {
+            gapiReady = true;
+            checkReadyAndInit();
+        });
+        
+        // Fallback in case gapi loads after DOM
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (window.gapi && !gapiReady) {
+                    gapiReady = true;
+                    checkReadyAndInit();
+                }
+            }, 1000);
+        });
+    </script>
 </head>
 <body>
     <div class="app-container">
@@ -396,7 +428,5 @@
             </div>
         </div>
     </div>
-
-    <script src="app.js"></script>
 </body>
 </html>
