@@ -6,85 +6,15 @@
     <title>Expense Tracker - Track Your Expenses in Rupees</title>
     <meta name="description" content="Track your daily expenses in Indian Rupees with Google Drive integration">
     
-    <!-- CRITICAL CSP FIX: Inject permissive CSP immediately -->
-    <script>
-        (function() {
-            // Remove any existing CSP meta tags
-            const existingCSP = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
-            if (existingCSP) {
-                existingCSP.remove();
-            }
-            
-            // Inject the most permissive CSP possible
-            const meta = document.createElement('meta');
-            meta.httpEquiv = 'Content-Security-Policy';
-            meta.content = "default-src 'self' 'unsafe-inline' 'unsafe-eval' *; script-src 'self' 'unsafe-inline' 'unsafe-eval' *; style-src 'self' 'unsafe-inline' *; font-src *; img-src *; connect-src *; frame-src *; object-src *; media-src *; child-src *;";
-            document.head.insertBefore(meta, document.head.firstChild);
-            
-            console.log('Permissive CSP injected successfully');
-        })();
-    </script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
     
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script async defer src="https://apis.google.com/js/api.js" onload="document.dispatchEvent(new Event('gapi_loaded'))"></script>
-    
-    <!-- Fallback GAPI loader -->
-    <script>
-        window.addEventListener('load', function() {
-            console.log('DOM ready');
-            if (typeof window.gapi === 'undefined') {
-                console.log('GAPI fallback loaded');
-                const script = document.createElement('script');
-                script.src = 'https://apis.google.com/js/api.js';
-                script.onload = function() {
-                    console.log('GAPI fallback loaded');
-                    document.dispatchEvent(new Event('gapi_loaded'));
-                };
-                document.head.appendChild(script);
-            }
-        });
-    </script>
-    
     <script src="app.js"></script>
-    <script>
-        // Wait for both DOM and gapi to be ready
-        let domReady = false;
-        let gapiReady = false;
-        
-        function checkReadyAndInit() {
-            console.log('DOM ready:', domReady, 'GAPI ready:', gapiReady);
-            if (domReady && gapiReady && window.initClient) {
-                console.log('DOM loaded, initializing app...');
-                window.initClient();
-            }
-        }
-        
-        document.addEventListener('DOMContentLoaded', () => {
-            domReady = true;
-            checkReadyAndInit();
-        });
-        
-        document.addEventListener('gapi_loaded', () => {
-            gapiReady = true;
-            checkReadyAndInit();
-        });
-        
-        // Fallback in case gapi loads after DOM
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                if (window.gapi && !gapiReady) {
-                    console.log('GAPI fallback loaded');
-                    gapiReady = true;
-                    checkReadyAndInit();
-                }
-            }, 1000);
-        });
-    </script>
 </head>
 <body>
     <div class="app-container">
-        <!-- Sync Status Bar (Google Drive connection info) -->
         <div id="sync-status" class="sync-status">
             <div class="sync-content">
                 <span class="sync-indicator">
@@ -95,7 +25,6 @@
             </div>
         </div>
 
-        <!-- Mobile-First Bottom Navigation -->
         <nav class="bottom-nav">
             <button class="nav-item active" data-view="dashboard">
                 <span class="nav-icon">🏠</span>
@@ -117,11 +46,13 @@
                 <span class="nav-icon">📊</span>
                 <span class="nav-label">Analytics</span>
             </button>
+            <button class="nav-item" data-view="settings">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-label">Settings</span>
+            </button>
         </nav>
 
-        <!-- Main Content -->
         <main class="main-content">
-            <!-- Dashboard View -->
             <div id="dashboard" class="view active">
                 <div class="view-header">
                     <h1>Dashboard</h1>
@@ -131,7 +62,6 @@
                 </div>
                 
                 <div class="dashboard-grid">
-                    <!-- Monthly Summary Card -->
                     <div class="card">
                         <div class="card__body">
                             <h3>This Month</h3>
@@ -142,7 +72,6 @@
                         </div>
                     </div>
 
-                    <!-- Payment Methods Breakdown -->
                     <div class="card">
                         <div class="card__body">
                             <h3>Payment Methods</h3>
@@ -155,7 +84,6 @@
                         </div>
                     </div>
 
-                    <!-- Upcoming Reminders -->
                     <div class="card">
                         <div class="card__body">
                             <h3>Upcoming Payments</h3>
@@ -168,7 +96,6 @@
                         </div>
                     </div>
 
-                    <!-- Recent Transactions -->
                     <div class="card recent-transactions">
                         <div class="card__body">
                             <h3>Recent Transactions</h3>
@@ -183,7 +110,6 @@
                 </div>
             </div>
 
-            <!-- Add Expense View -->
             <div id="add-expense" class="view">
                 <div class="view-header">
                     <h1>Add Expense</h1>
@@ -229,7 +155,6 @@
                 </div>
             </div>
 
-            <!-- Payment Methods View -->
             <div id="payment-methods" class="view">
                 <div class="view-header">
                     <h1>Payment Methods</h1>
@@ -246,7 +171,6 @@
                     </div>
                 </div>
 
-                <!-- Add Payment Method Modal -->
                 <div id="payment-method-modal" class="modal hidden">
                     <div class="modal__overlay" onclick="hidePaymentMethodForm()"></div>
                     <div class="modal__content">
@@ -285,7 +209,6 @@
                 </div>
             </div>
 
-            <!-- Reminders View -->
             <div id="reminders" class="view">
                 <div class="view-header">
                     <h1>Bill Reminders</h1>
@@ -302,7 +225,6 @@
                     </div>
                 </div>
 
-                <!-- Add Reminder Modal -->
                 <div id="reminder-modal" class="modal hidden">
                     <div class="modal__overlay" onclick="hideReminderForm()"></div>
                     <div class="modal__content">
@@ -351,7 +273,6 @@
                 </div>
             </div>
 
-            <!-- Analytics View -->
             <div id="analytics" class="view">
                 <div class="view-header">
                     <h1>Analytics</h1>
@@ -383,7 +304,6 @@
                 </div>
             </div>
 
-            <!-- Settings View -->
             <div id="settings" class="view">
                 <div class="view-header">
                     <h1>Settings</h1>
@@ -423,7 +343,6 @@
             </div>
         </main>
 
-        <!-- Sync Settings Modal -->
         <div id="sync-settings-modal" class="modal hidden">
             <div class="modal__overlay" onclick="app.hideSyncSettings()"></div>
             <div class="modal__content">
@@ -458,5 +377,14 @@
             </div>
         </div>
     </div>
+    
+    <script>
+        window.onload = () => {
+            // This ensures all scripts are loaded before we initialize the Google Drive client
+            if (window.app) {
+                window.app.initializeGoogleDrive();
+            }
+        };
+    </script>
 </body>
 </html>
