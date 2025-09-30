@@ -784,6 +784,12 @@ select.form-control {
   display: none;
 }
 
+/* Setup Instructions Banner Styles */
+.auth-banner p {
+  margin: 0;
+  line-height: 1.4;
+}
+
 /* Sync Status Bar */
 .sync-status {
   background: var(--color-bg-3);
@@ -1328,6 +1334,31 @@ select.form-control {
   text-align: center;
 }
 
+/* Setup Instructions Styles */
+.setup-instructions {
+  text-align: left;
+}
+
+.setup-instructions h4 {
+  margin-bottom: var(--space-12);
+  color: var(--color-text);
+}
+
+.setup-instructions ol {
+  padding-left: var(--space-20);
+  color: var(--color-text-secondary);
+}
+
+.setup-instructions ol li {
+  margin-bottom: var(--space-8);
+  line-height: 1.5;
+}
+
+.setup-instructions a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
 /* Sync Settings Modal Content */
 .sync-settings-content {
   max-width: 100%;
@@ -1348,13 +1379,22 @@ select.form-control {
 .status-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: var(--space-4) 0;
   font-size: var(--font-size-sm);
+  gap: var(--space-8);
 }
 
-.status-row:first-child span:first-child {
+.status-row span:first-child {
   font-weight: var(--font-weight-medium);
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.status-row span:last-child {
+  text-align: right;
+  word-break: break-word;
+  flex: 1;
 }
 
 .sync-actions {
@@ -1363,7 +1403,7 @@ select.form-control {
   gap: var(--space-12);
 }
 
-/* Modal - Mobile Optimized */
+/* Modal - Mobile Optimized with Fixed Overlay */
 .modal {
   position: fixed;
   top: 0;
@@ -1378,16 +1418,18 @@ select.form-control {
 }
 
 .modal.hidden {
-  display: none;
+  display: none !important;
 }
 
 .modal__overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2000;
+  backdrop-filter: blur(2px);
 }
 
 .modal__content {
@@ -1400,6 +1442,8 @@ select.form-control {
   z-index: 2001;
   max-height: 90vh;
   overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-card-border);
 }
 
 .modal__content h3 {
@@ -1587,6 +1631,12 @@ select.form-control {
     width: 90%;
     padding: var(--space-32);
   }
+
+  /* Setup banner content adjustments for larger screens */
+  .auth-content {
+    flex-direction: row;
+    align-items: center;
+  }
 }
 
 @media (min-width: 1024px) {
@@ -1600,6 +1650,10 @@ select.form-control {
   
   .metric__value {
     font-size: var(--font-size-4xl);
+  }
+
+  .settings-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -1625,6 +1679,10 @@ select.form-control {
   .reminder-card {
     border-width: 2px;
   }
+  
+  .modal__overlay {
+    background: rgba(0, 0, 0, 0.8);
+  }
 }
 
 /* Reduce motion for users who prefer it */
@@ -1638,5 +1696,9 @@ select.form-control {
   
   .sync-dot.syncing {
     animation: none;
+  }
+  
+  .modal__overlay {
+    backdrop-filter: none;
   }
 }

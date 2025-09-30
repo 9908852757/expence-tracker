@@ -6,15 +6,77 @@
     <title>Expense Tracker - Track Your Expenses in Rupees</title>
     <meta name="description" content="Track your daily expenses in Indian Rupees with Google Drive integration">
     
-    <!-- Comprehensive CSP for Google OAuth iframe compatibility -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src https: data: blob:; style-src 'self' 'unsafe-inline' https: data:; font-src https: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; frame-src https: data:; connect-src https: data: blob:; object-src 'none'; media-src https: data: blob:; worker-src 'self' blob:; child-src https: data: blob:; form-action 'self' https:; base-uri 'self'">
+    <!-- Comprehensive CSP for Google OAuth - Very permissive to handle dynamic script loading -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src * data: blob: 'unsafe-inline'; style-src 'self' 'unsafe-inline' *; font-src * data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' * blob: data:; frame-src * blob: data:; connect-src * blob: data:; object-src 'none'; media-src * data: blob:; worker-src 'self' blob: data:; child-src * blob: data:; form-action 'self' *; base-uri 'self'; frame-ancestors 'none';">
     
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://apis.google.com/js/api.js"></script>
+    <script async defer src="https://apis.google.com/js/api.js" onload="document.dispatchEvent(new Event('gapi_loaded'))"></script>
+    <script src="app.js"></script>
+    <script>
+        // Enhanced Google API loading with better error handling
+        let domReady = false;
+        let gapiReady = false;
+        
+        function checkReadyAndInit() {
+            if (domReady && gapiReady && window.initClient) {
+                console.log('Initializing Google API client...');
+                window.initClient();
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            domReady = true;
+            console.log('DOM ready');
+            checkReadyAndInit();
+        });
+        
+        document.addEventListener('gapi_loaded', () => {
+            gapiReady = true;
+            console.log('Google API loaded');
+            checkReadyAndInit();
+        });
+        
+        // Enhanced fallback with multiple retry attempts
+        window.addEventListener('load', () => {
+            let retryCount = 0;
+            const maxRetries = 5;
+            
+            function retryGapiInit() {
+                if (window.gapi && !gapiReady && retryCount < maxRetries) {
+                    console.log(`Retry attempt ${retryCount + 1} for Google API initialization`);
+                    gapiReady = true;
+                    checkReadyAndInit();
+                } else if (retryCount < maxRetries) {
+                    retryCount++;
+                    setTimeout(retryGapiInit, 1000);
+                } else {
+                    console.warn('Google API failed to load after multiple attempts');
+                }
+            }
+            
+            setTimeout(retryGapiInit, 1000);
+        });
+    </script>
 </head>
 <body>
     <div class="app-container">
+        <!-- Google Drive Setup Instructions Banner -->
+        <div id="setup-banner" class="auth-banner" style="background: var(--color-bg-6);">
+            <div class="auth-content" style="flex-direction: column; gap: var(--space-12);">
+                <div class="auth-message">
+                    <span class="auth-icon">⚠️</span>
+                    <strong>Setup Required:</strong> Add your Vercel domain to Google Cloud Console
+                </div>
+                <div style="font-size: var(--font-size-xs); text-align: center; max-width: 100%;">
+                    <p style="margin: 0 0 var(--space-8) 0;">Go to <strong>Google Cloud Console</strong> → <strong>APIs & Services</strong> → <strong>Credentials</strong></p>
+                    <p style="margin: 0 0 var(--space-8) 0;">Click your OAuth 2.0 Client ID and add your domain to <strong>Authorized JavaScript origins</strong></p>
+                    <p style="margin: 0; color: var(--color-primary); font-weight: 500;">Example: https://your-app-name.vercel.app</p>
+                </div>
+                <button class="btn btn--secondary btn--sm" onclick="document.getElementById('setup-banner').style.display='none'">Dismiss</button>
+            </div>
+        </div>
+
         <!-- Google Drive Authentication Banner -->
         <div id="auth-banner" class="auth-banner">
             <div class="auth-content">
@@ -361,6 +423,26 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="card">
+                        <div class="card__body">
+                            <h3>Setup Instructions</h3>
+                            <div class="setup-instructions">
+                                <h4>Google Drive Integration Setup:</h4>
+                                <ol style="font-size: var(--font-size-sm); margin: var(--space-12) 0;">
+                                    <li>Go to <a href="https://console.developers.google.com/" target="_blank">Google Cloud Console</a></li>
+                                    <li>Navigate to <strong>APIs & Services</strong> → <strong>Credentials</strong></li>
+                                    <li>Click on your OAuth 2.0 Client ID</li>
+                                    <li>Add your Vercel domain to <strong>Authorized JavaScript origins</strong></li>
+                                    <li>Save and wait a few minutes for changes to take effect</li>
+                                </ol>
+                                <p style="font-size: var(--font-size-xs); color: var(--color-text-secondary);">
+                                    <strong>Current Client ID:</strong><br>
+                                    233167876623-d6qu3irgp5k90em45klitumise38c329.apps.googleusercontent.com
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
@@ -389,6 +471,10 @@
                             <span>Drive Folder:</span>
                             <span id="drive-folder">ExpenseTracker</span>
                         </div>
+                        <div class="status-row">
+                            <span>Client ID:</span>
+                            <span style="font-size: var(--font-size-xs); word-break: break-all;">233167876623-d6qu3irgp5k90em45klitumise38c329.apps.googleusercontent.com</span>
+                        </div>
                     </div>
                     
                     <div class="sync-actions">
@@ -400,7 +486,5 @@
             </div>
         </div>
     </div>
-
-    <script src="app.js"></script>
 </body>
 </html>
