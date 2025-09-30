@@ -5,40 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Expense Tracker - Track Your Expenses in Rupees</title>
     <meta name="description" content="Track your daily expenses in Indian Rupees with Google Drive integration">
+    
+    <!-- Comprehensive CSP for Google OAuth iframe compatibility -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src https: data: blob:; style-src 'self' 'unsafe-inline' https: data:; font-src https: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; frame-src https: data:; connect-src https: data: blob:; object-src 'none'; media-src https: data: blob:; worker-src 'self' blob:; child-src https: data: blob:; form-action 'self' https:; base-uri 'self'">
+    
     <link rel="stylesheet" href="style.css">
-    <!-- Load Chart.js with error handling -->
-    <script>
-        // CSP-safe Chart.js loading with fallback
-        (function() {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
-            script.onerror = function() {
-                console.warn('Chart.js failed to load from CDN, charts will be disabled');
-                window.chartJsLoadFailed = true;
-            };
-            script.onload = function() {
-                console.log('Chart.js loaded successfully');
-                window.chartJsLoaded = true;
-            };
-            document.head.appendChild(script);
-        })();
-    </script>
-    <!-- Load Google API with error handling -->
-    <script>
-        (function() {
-            const script = document.createElement('script');
-            script.src = 'https://apis.google.com/js/api.js';
-            script.onerror = function() {
-                console.warn('Google API failed to load, Drive sync will be disabled');
-                window.googleApiLoadFailed = true;
-            };
-            script.onload = function() {
-                console.log('Google API loaded successfully');
-                window.googleApiLoaded = true;
-            };
-            document.head.appendChild(script);
-        })();
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://apis.google.com/js/api.js"></script>
 </head>
 <body>
     <div class="app-container">
