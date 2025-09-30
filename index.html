@@ -5,9 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Expense Tracker - Track Your Expenses in Rupees</title>
     <meta name="description" content="Track your daily expenses in Indian Rupees with Google Drive integration">
+    
+    <!-- CRITICAL CSP FIX: Inject permissive CSP immediately -->
+    <script>
+        (function() {
+            // Remove any existing CSP meta tags
+            const existingCSP = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+            if (existingCSP) {
+                existingCSP.remove();
+            }
+            
+            // Inject the most permissive CSP possible
+            const meta = document.createElement('meta');
+            meta.httpEquiv = 'Content-Security-Policy';
+            meta.content = "default-src 'self' 'unsafe-inline' 'unsafe-eval' *; script-src 'self' 'unsafe-inline' 'unsafe-eval' *; style-src 'self' 'unsafe-inline' *; font-src *; img-src *; connect-src *; frame-src *; object-src *; media-src *; child-src *;";
+            document.head.insertBefore(meta, document.head.firstChild);
+            
+            console.log('Permissive CSP injected successfully');
+        })();
+    </script>
+    
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script async defer src="https://apis.google.com/js/api.js" onload="document.dispatchEvent(new Event('gapi_loaded'))"></script>
+    
+    <!-- Fallback GAPI loader -->
+    <script>
+        window.addEventListener('load', function() {
+            console.log('DOM ready');
+            if (typeof window.gapi === 'undefined') {
+                console.log('GAPI fallback loaded');
+                const script = document.createElement('script');
+                script.src = 'https://apis.google.com/js/api.js';
+                script.onload = function() {
+                    console.log('GAPI fallback loaded');
+                    document.dispatchEvent(new Event('gapi_loaded'));
+                };
+                document.head.appendChild(script);
+            }
+        });
+    </script>
+    
     <script src="app.js"></script>
     <script>
         // Wait for both DOM and gapi to be ready
@@ -23,13 +61,11 @@
         }
         
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('DOM ready');
             domReady = true;
             checkReadyAndInit();
         });
         
         document.addEventListener('gapi_loaded', () => {
-            console.log('GAPI loaded');
             gapiReady = true;
             checkReadyAndInit();
         });
@@ -48,46 +84,8 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Domain Authorization Setup Banner -->
-        <div id="setup-banner" class="setup-banner">
-            <div class="setup-content">
-                <div class="setup-header">
-                    <span class="setup-icon">⚠️</span>
-                    <h3>Google Drive Setup Required</h3>
-                </div>
-                <div class="setup-instructions">
-                    <p><strong>To enable Google Drive sync, add this domain to your Google Cloud Console:</strong></p>
-                    <div class="domain-display">
-                        <code id="current-domain">https://expence-tracker-kappa-sand.vercel.app</code>
-                        <button class="copy-btn" onclick="copyDomain()" title="Copy domain">📋</button>
-                    </div>
-                    <div class="setup-steps">
-                        <ol>
-                            <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console → APIs & Services → Credentials</a></li>
-                            <li>Click on your OAuth 2.0 Client ID</li>
-                            <li>Add the domain above to "Authorized JavaScript origins"</li>
-                            <li>Save and refresh this page</li>
-                        </ol>
-                    </div>
-                </div>
-                <button class="btn btn--primary btn--sm" onclick="app.connectGoogleDrive()">Try Connection</button>
-                <button class="btn btn--outline btn--sm" onclick="hideSetupBanner()">Use Offline Mode</button>
-            </div>
-        </div>
-
-        <!-- Google Drive Authentication Banner -->
-        <div id="auth-banner" class="auth-banner hidden">
-            <div class="auth-content">
-                <div class="auth-message">
-                    <span class="auth-icon">☁️</span>
-                    <span>Connect to Google Drive for cloud sync</span>
-                </div>
-                <button class="btn btn--primary btn--sm" onclick="app.connectGoogleDrive()">Connect Drive</button>
-            </div>
-        </div>
-
-        <!-- Sync Status Bar -->
-        <div id="sync-status" class="sync-status hidden">
+        <!-- Sync Status Bar (Google Drive connection info) -->
+        <div id="sync-status" class="sync-status">
             <div class="sync-content">
                 <span class="sync-indicator">
                     <span class="sync-dot" id="sync-dot"></span>
@@ -460,40 +458,5 @@
             </div>
         </div>
     </div>
-
-    <script>
-        function copyDomain() {
-            const domain = document.getElementById('current-domain').textContent;
-            navigator.clipboard.writeText(domain).then(() => {
-                const btn = document.querySelector('.copy-btn');
-                const originalText = btn.textContent;
-                btn.textContent = '✅';
-                setTimeout(() => {
-                    btn.textContent = originalText;
-                }, 1000);
-            });
-        }
-
-        function hideSetupBanner() {
-            const banner = document.getElementById('setup-banner');
-            if (banner) {
-                banner.classList.add('hidden');
-                const authBanner = document.getElementById('auth-banner');
-                if (authBanner) {
-                    authBanner.classList.remove('hidden');
-                }
-            }
-        }
-
-        // Update current domain display
-        document.addEventListener('DOMContentLoaded', () => {
-            const currentOrigin = window.location.origin;
-            console.log('Current origin:', currentOrigin);
-            const domainElement = document.getElementById('current-domain');
-            if (domainElement) {
-                domainElement.textContent = currentOrigin;
-            }
-        });
-    </script>
 </body>
 </html>

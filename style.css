@@ -749,144 +749,8 @@ select.form-control {
   padding-bottom: 80px; /* Space for bottom navigation */
 }
 
-/* Setup Banner for Domain Authorization */
-.setup-banner {
-  background: var(--color-bg-4);
-  border: 1px solid var(--color-error);
-  border-bottom: 2px solid var(--color-error);
-  padding: var(--space-16) var(--space-16);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.setup-content {
-  max-width: var(--container-xl);
-  margin: 0 auto;
-}
-
-.setup-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
-  margin-bottom: var(--space-16);
-}
-
-.setup-icon {
-  font-size: var(--font-size-xl);
-}
-
-.setup-header h3 {
-  color: var(--color-error);
-  margin: 0;
-  font-size: var(--font-size-lg);
-}
-
-.setup-instructions {
-  margin-bottom: var(--space-20);
-}
-
-.setup-instructions p {
-  margin-bottom: var(--space-12);
-  font-weight: var(--font-weight-medium);
-}
-
-.domain-display {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  margin: var(--space-12) 0;
-  padding: var(--space-12);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-base);
-}
-
-.domain-display code {
-  flex: 1;
-  background: none;
-  padding: 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-primary);
-  font-weight: var(--font-weight-medium);
-}
-
-.copy-btn {
-  background: var(--color-secondary);
-  border: 1px solid var(--color-border);
-  padding: var(--space-6) var(--space-8);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  transition: background var(--duration-fast) var(--ease-standard);
-  min-height: 32px;
-  min-width: 32px;
-}
-
-.copy-btn:hover {
-  background: var(--color-secondary-hover);
-}
-
-.setup-steps {
-  margin: var(--space-16) 0;
-}
-
-.setup-steps ol {
-  margin: 0;
-  padding-left: var(--space-20);
-}
-
-.setup-steps li {
-  margin-bottom: var(--space-8);
-  font-size: var(--font-size-sm);
-}
-
-.setup-steps a {
-  color: var(--color-primary);
-  text-decoration: underline;
-}
-
-.setup-content .btn {
-  margin-right: var(--space-8);
-  margin-bottom: var(--space-8);
-}
-
-.setup-banner.hidden {
-  display: none;
-}
-
-/* Google Drive Authentication Banner */
+/* Google Drive Authentication Banner - REMOVED as requested */
 .auth-banner {
-  background: var(--color-bg-1);
-  border-bottom: 1px solid var(--color-border);
-  padding: var(--space-12) var(--space-16);
-  position: sticky;
-  top: 0;
-  z-index: 99;
-}
-
-.auth-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-width: var(--container-xl);
-  margin: 0 auto;
-  gap: var(--space-16);
-}
-
-.auth-message {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
-
-.auth-icon {
-  font-size: var(--font-size-lg);
-}
-
-.auth-banner.hidden {
   display: none;
 }
 
@@ -897,7 +761,7 @@ select.form-control {
   padding: var(--space-8) var(--space-16);
   position: sticky;
   top: 0;
-  z-index: 98;
+  z-index: 99;
 }
 
 .sync-content {
@@ -1617,37 +1481,6 @@ select.form-control {
   font-size: var(--font-size-sm);
 }
 
-/* Error message styling */
-.error-message {
-  background: var(--color-bg-4);
-  border: 1px solid var(--color-error);
-  color: var(--color-error);
-  padding: var(--space-12) var(--space-16);
-  border-radius: var(--radius-base);
-  margin: var(--space-16) 0;
-  font-size: var(--font-size-sm);
-}
-
-.warning-message {
-  background: var(--color-bg-6);
-  border: 1px solid var(--color-warning);
-  color: var(--color-warning);
-  padding: var(--space-12) var(--space-16);
-  border-radius: var(--radius-base);
-  margin: var(--space-16) 0;
-  font-size: var(--font-size-sm);
-}
-
-.success-message {
-  background: var(--color-bg-3);
-  border: 1px solid var(--color-success);
-  color: var(--color-success);
-  padding: var(--space-12) var(--space-16);
-  border-radius: var(--radius-base);
-  margin: var(--space-16) 0;
-  font-size: var(--font-size-sm);
-}
-
 /* Responsive Design - Tablet and Desktop */
 @media (min-width: 768px) {
   .app-container {
@@ -1705,11 +1538,6 @@ select.form-control {
   .sync-actions {
     flex-direction: row;
     justify-content: center;
-  }
-  
-  .setup-content .btn {
-    margin-right: var(--space-8);
-    margin-bottom: 0;
   }
   
   .payment-methods-grid,

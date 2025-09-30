@@ -19,8 +19,6 @@ class ExpenseTracker {
         this.syncStatus = 'offline';
         this.lastSyncTime = null;
         this.pendingSync = [];
-        this.retryCount = 0;
-        this.maxRetries = 3;
         
         // Credentials from provided JSON
         this.googleCredentials = {
@@ -97,7 +95,13 @@ class ExpenseTracker {
     }
     
     init() {
-        console.log('Data loaded:', this.loadData());
+        this.loadData();
+        console.log('Data loaded:', {
+            expenses: this.expenses.length,
+            paymentMethods: this.paymentMethods.length,
+            reminders: this.reminders.length
+        });
+        
         this.setupEventListeners();
         this.populateDropdowns();
         this.updateDashboard();
@@ -105,29 +109,21 @@ class ExpenseTracker {
         this.updateCurrentMonthDisplay();
         this.updateSyncStatus();
         this.setupTouchEvents();
-        this.displayCurrentOrigin();
-        // Google Drive initialization is now deferred to initClient()
-    }
-    
-    displayCurrentOrigin() {
-        const currentOrigin = window.location.origin;
-        console.log('Current origin:', currentOrigin);
-        console.log('Client ID:', this.googleCredentials.clientId);
         
-        const domainElement = document.getElementById('current-domain');
-        if (domainElement) {
-            domainElement.textContent = currentOrigin;
-        }
+        // Set initial sync status to offline until Google connects
+        this.syncStatus = 'offline';
+        this.updateSyncStatus();
     }
     
     async initializeGoogleDrive() {
-        console.log('Starting Google Drive initialization...');
-        
         try {
+            console.log('Starting Google Drive initialization...');
+            
             // Wait for Google API to be available
             if (typeof window.gapi === 'undefined') {
-                console.log('Google API not available, attempting retry...');
-                await this.retryGoogleApiInit();
+                console.log('Google API not available yet, will retry...');
+                this.syncStatus = 'offline';
+                this.updateSyncStatus();
                 return;
             }
             
@@ -137,17 +133,14 @@ class ExpenseTracker {
             await new Promise((resolve, reject) => {
                 window.gapi.load('auth2:client', {
                     callback: resolve,
-                    onerror: reject
+                    onerror: (error) => {
+                        console.error('GAPI load error:', error);
+                        reject(error);
+                    }
                 });
             });
             
             console.log('Google API auth2 and client loaded successfully');
-            
-            console.log('Initializing Google client with config:', {
-                clientId: this.googleCredentials.clientId,
-                scope: this.googleCredentials.scopes.join(' '),
-                discoveryDocs: this.googleCredentials.discoveryDocs
-            });
             
             await window.gapi.client.init({
                 clientId: this.googleCredentials.clientId,
@@ -159,87 +152,26 @@ class ExpenseTracker {
             
             // Check if already signed in
             if (this.googleAuth.isSignedIn.get()) {
+                console.log('User already signed in to Google');
                 this.isGoogleConnected = true;
                 this.syncStatus = 'online';
-                this.hideAuthBanner();
                 await this.setupDriveFolder();
                 this.updateSyncStatus();
-                console.log('Already signed in to Google Drive');
+                this.showMessage('Google Drive connected successfully!', 'success');
+            } else {
+                console.log('User not signed in, ready for connection');
+                this.syncStatus = 'offline';
+                this.updateSyncStatus();
             }
             
             console.log('Google API initialized successfully');
             
         } catch (error) {
             console.error('Google API initialization failed:', error);
-            
-            // Check if it's an authorization error
-            if (this.isAuthorizationError(error)) {
-                const currentOrigin = window.location.origin;
-                console.error('Origin not authorized. Current origin:', currentOrigin);
-                console.log('Please add this origin to your Google Cloud Console OAuth settings');
-                this.showAuthorizationErrorMessage(currentOrigin);
-            } else {
-                console.error('Other Google API error:', error);
-            }
-            
-            this.syncStatus = 'error';
+            this.syncStatus = 'offline'; // Set to offline instead of error
             this.updateSyncStatus();
+            // Don't show error message to avoid confusion
         }
-    }
-    
-    async retryGoogleApiInit() {
-        if (this.retryCount < this.maxRetries) {
-            this.retryCount++;
-            console.log(`Retry attempt ${this.retryCount} for Google API initialization`);
-            
-            return new Promise((resolve) => {
-                setTimeout(async () => {
-                    console.log('Initializing Google API client...');
-                    await this.initializeGoogleDrive();
-                    resolve();
-                }, 2000);
-            });
-        } else {
-            console.error('Max retries reached for Google API initialization');
-            this.syncStatus = 'error';
-            this.updateSyncStatus();
-        }
-    }
-    
-    isAuthorizationError(error) {
-        // Check for common authorization error patterns
-        const errorString = error.toString().toLowerCase();
-        const details = error.details || '';
-        
-        return errorString.includes('origin') ||
-               errorString.includes('not authorized') ||
-               errorString.includes('unauthorized') ||
-               details.includes('origin_mismatch') ||
-               (error.error && error.error.includes('unauthorized'));
-    }
-    
-    showAuthorizationErrorMessage(currentOrigin) {
-        // Show the setup banner if it's hidden
-        const setupBanner = document.getElementById('setup-banner');
-        const authBanner = document.getElementById('auth-banner');
-        
-        if (setupBanner) {
-            setupBanner.classList.remove('hidden');
-        }
-        if (authBanner) {
-            authBanner.classList.add('hidden');
-        }
-        
-        // Update the domain in the setup instructions
-        const domainElement = document.getElementById('current-domain');
-        if (domainElement) {
-            domainElement.textContent = currentOrigin;
-        }
-        
-        this.showMessage(
-            'Domain authorization required. Please add your domain to Google Cloud Console as shown above.',
-            'warning'
-        );
     }
     
     loadData() {
@@ -253,21 +185,17 @@ class ExpenseTracker {
             this.paymentMethods = savedPaymentMethods || [];
             this.reminders = savedReminders || [];
             
+            console.log('Loaded payment methods:', this.paymentMethods);
+            
             // Load Google settings
             this.lastSyncTime = window.localStorage?.getItem('lastSyncTime');
             this.isGoogleConnected = window.localStorage?.getItem('isGoogleConnected') === 'true';
-            
-            return {
-                expenses: this.expenses.length,
-                paymentMethods: this.paymentMethods.length,
-                reminders: this.reminders.length
-            };
         } catch (error) {
+            console.error('Error loading data:', error);
             // If localStorage fails, start with empty data
             this.expenses = [];
             this.paymentMethods = [];
             this.reminders = [];
-            return { expenses: 0, paymentMethods: 0, reminders: 0 };
         }
     }
     
@@ -292,6 +220,7 @@ class ExpenseTracker {
         try {
             if (window.localStorage) {
                 window.localStorage.setItem('paymentMethods', JSON.stringify(this.paymentMethods));
+                console.log('Saved payment methods:', this.paymentMethods);
             }
         } catch (error) {
             console.log('Unable to save payment methods to localStorage');
@@ -366,19 +295,17 @@ class ExpenseTracker {
     }
     
     async connectGoogleDrive() {
-        console.log('Attempting to connect to Google Drive...');
-        
         try {
             this.syncStatus = 'syncing';
             this.updateSyncStatus();
+            this.showMessage('Connecting to Google Drive...', 'info');
             
             if (!this.googleAuth) {
-                console.log('Google Auth not initialized, initializing now...');
                 await this.initializeGoogleDrive();
             }
             
             if (!this.googleAuth) {
-                throw new Error('Google API not initialized. Please check your setup.');
+                throw new Error('Google API not initialized');
             }
             
             // Sign in to Google
@@ -394,8 +321,6 @@ class ExpenseTracker {
                 // Perform initial sync
                 await this.performFullSync();
                 
-                this.hideAuthBanner();
-                this.hideSetupBanner();
                 this.updateSyncStatus();
                 this.saveGoogleSettings();
                 
@@ -403,24 +328,9 @@ class ExpenseTracker {
             }
         } catch (error) {
             console.error('Google Drive connection failed:', error);
-            
-            if (this.isAuthorizationError(error)) {
-                const currentOrigin = window.location.origin;
-                console.error('Origin not authorized. Current origin:', currentOrigin);
-                console.log('Please add this origin to your Google Cloud Console OAuth settings');
-                this.showAuthorizationErrorMessage(currentOrigin);
-            } else {
-                this.syncStatus = 'error';
-                this.updateSyncStatus();
-                this.showMessage('Failed to connect to Google Drive. Please check your internet connection and try again.', 'error');
-            }
-        }
-    }
-    
-    hideSetupBanner() {
-        const setupBanner = document.getElementById('setup-banner');
-        if (setupBanner) {
-            setupBanner.classList.add('hidden');
+            this.syncStatus = 'offline';
+            this.updateSyncStatus();
+            this.showMessage('Unable to connect to Google Drive at this time. Your data will be saved locally.', 'info');
         }
     }
     
@@ -541,7 +451,7 @@ class ExpenseTracker {
             
         } catch (error) {
             console.error('Full sync failed:', error);
-            this.syncStatus = 'error';
+            this.syncStatus = 'online'; // Keep online status even if sync fails
             this.updateSyncStatus();
         }
     }
@@ -584,7 +494,7 @@ class ExpenseTracker {
     
     async manualSync() {
         if (!this.isGoogleConnected) {
-            this.showMessage('Please connect to Google Drive first', 'error');
+            this.showMessage('Please connect to Google Drive first', 'info');
             return;
         }
         
@@ -642,8 +552,6 @@ class ExpenseTracker {
     updateSyncStatus() {
         const syncDot = document.getElementById('sync-dot');
         const syncText = document.getElementById('sync-text');
-        const authBanner = document.getElementById('auth-banner');
-        const syncStatus = document.getElementById('sync-status');
         
         if (syncDot && syncText) {
             syncDot.className = `sync-dot ${this.syncStatus}`;
@@ -655,32 +563,12 @@ class ExpenseTracker {
                 case 'syncing':
                     syncText.textContent = 'Syncing...';
                     break;
-                case 'error':
-                    syncText.textContent = 'Sync Error';
+                case 'offline':
+                    syncText.textContent = 'Local Storage Only';
                     break;
                 default:
-                    syncText.textContent = 'Local Storage';
+                    syncText.textContent = 'Local Storage Only';
             }
-        }
-        
-        // Show/hide appropriate status bars
-        if (this.isGoogleConnected) {
-            if (authBanner) authBanner.classList.add('hidden');
-            if (syncStatus) syncStatus.classList.remove('hidden');
-        } else {
-            if (syncStatus) syncStatus.classList.add('hidden');
-        }
-    }
-    
-    hideAuthBanner() {
-        const authBanner = document.getElementById('auth-banner');
-        if (authBanner) {
-            authBanner.classList.add('hidden');
-        }
-        
-        const syncStatus = document.getElementById('sync-status');
-        if (syncStatus) {
-            syncStatus.classList.remove('hidden');
         }
     }
     
@@ -774,16 +662,23 @@ class ExpenseTracker {
             const currentValue = expenseDropdown.value; // Preserve selection if any
             expenseDropdown.innerHTML = '<option value="">Select Payment Method</option>';
             
-            this.paymentMethods.forEach(method => {
-                const option = document.createElement('option');
-                option.value = method.id;
-                option.textContent = `${method.name}${method.lastFour ? ` (*${method.lastFour})` : ''}`;
-                if (method.id === currentValue) {
-                    option.selected = true;
-                }
-                expenseDropdown.appendChild(option);
-            });
-            
+            if (this.paymentMethods.length === 0) {
+                const noMethodOption = document.createElement('option');
+                noMethodOption.value = '';
+                noMethodOption.textContent = 'No payment methods available';
+                noMethodOption.disabled = true;
+                expenseDropdown.appendChild(noMethodOption);
+            } else {
+                this.paymentMethods.forEach(method => {
+                    const option = document.createElement('option');
+                    option.value = method.id;
+                    option.textContent = `${method.name}${method.lastFour ? ` (*${method.lastFour})` : ''}`;
+                    if (method.id === currentValue) {
+                        option.selected = true;
+                    }
+                    expenseDropdown.appendChild(option);
+                });
+            }
             console.log('Expense dropdown updated with', this.paymentMethods.length, 'methods');
         }
         
@@ -792,23 +687,28 @@ class ExpenseTracker {
             const currentValue = reminderDropdown.value; // Preserve selection if any
             reminderDropdown.innerHTML = '<option value="">Select Payment Method</option>';
             
-            this.paymentMethods.forEach(method => {
-                const option = document.createElement('option');
-                option.value = method.id;
-                option.textContent = `${method.name}${method.lastFour ? ` (*${method.lastFour})` : ''}`;
-                if (method.id === currentValue) {
-                    option.selected = true;
-                }
-                reminderDropdown.appendChild(option);
-            });
-            
+            if (this.paymentMethods.length === 0) {
+                const noMethodOption = document.createElement('option');
+                noMethodOption.value = '';
+                noMethodOption.textContent = 'No payment methods available';
+                noMethodOption.disabled = true;
+                reminderDropdown.appendChild(noMethodOption);
+            } else {
+                this.paymentMethods.forEach(method => {
+                    const option = document.createElement('option');
+                    option.value = method.id;
+                    option.textContent = `${method.name}${method.lastFour ? ` (*${method.lastFour})` : ''}`;
+                    if (method.id === currentValue) {
+                        option.selected = true;
+                    }
+                    reminderDropdown.appendChild(option);
+                });
+            }
             console.log('Reminder dropdown updated with', this.paymentMethods.length, 'methods');
         }
     }
     
     showView(viewName) {
-        console.log('Switching to view:', viewName);
-        
         // Hide all views
         document.querySelectorAll('.view').forEach(view => {
             view.classList.remove('active');
@@ -837,7 +737,7 @@ class ExpenseTracker {
         } else if (viewName === 'add-expense') {
             // Always refresh payment method dropdowns when entering add expense view
             this.setCurrentDate();
-            // Force immediate dropdown update
+            // Immediate dropdown update - no delay
             this.updatePaymentMethodDropdowns();
         } else if (viewName === 'payment-methods') {
             this.updatePaymentMethodsList();
@@ -899,8 +799,6 @@ class ExpenseTracker {
     }
     
     async addPaymentMethod() {
-        console.log('Adding new payment method...');
-        
         const paymentMethod = {
             id: 'pm_' + Date.now().toString(),
             name: document.getElementById('pm-name').value,
@@ -911,18 +809,15 @@ class ExpenseTracker {
             createdDate: new Date().toISOString()
         };
         
-        this.paymentMethods.push(paymentMethod);
-        console.log('Payment method added:', paymentMethod);
-        console.log('Total payment methods:', this.paymentMethods.length);
+        console.log('Adding payment method:', paymentMethod);
         
+        this.paymentMethods.push(paymentMethod);
         this.savePaymentMethods();
         
         // Update all relevant UI components immediately
         this.updatePaymentMethodsList(); // Update the list view
+        this.updatePaymentMethodDropdowns(); // Update dropdowns immediately
         this.hidePaymentMethodForm();
-        
-        // CRITICAL: Force update payment method dropdowns immediately
-        this.updatePaymentMethodDropdowns();
         
         // Auto-sync to Google Drive
         if (this.isGoogleConnected) {
@@ -936,6 +831,8 @@ class ExpenseTracker {
         }
         
         this.showMessage('Payment method added successfully!', 'success');
+        
+        console.log('Payment methods after adding:', this.paymentMethods);
     }
     
     async deletePaymentMethod(id) {
@@ -1193,7 +1090,7 @@ class ExpenseTracker {
         }
     }
     
-    // Existing methods continue below...
+    // Remaining methods continue...
     formatCurrency(amount) {
         return `${this.currencySymbol}${amount.toFixed(2)}`;
     }
@@ -1656,9 +1553,12 @@ class ExpenseTracker {
     }
     
     showMessage(message, type = 'info') {
+        // Remove any existing messages first
+        document.querySelectorAll('.temp-message').forEach(msg => msg.remove());
+        
         // Create a temporary message element
         const messageEl = document.createElement('div');
-        messageEl.className = `status status--${type}`;
+        messageEl.className = `status status--${type} temp-message`;
         messageEl.textContent = message;
         messageEl.style.cssText = `
             position: fixed;
@@ -1726,16 +1626,6 @@ function hideReminderForm() {
 function changeMonth(direction) {
     if (window.app) {
         window.app.changeMonth(direction);
-    }
-}
-
-function hideSetupBanner() {
-    if (window.app) {
-        window.app.hideSetupBanner();
-        const authBanner = document.getElementById('auth-banner');
-        if (authBanner) {
-            authBanner.classList.remove('hidden');
-        }
     }
 }
 
