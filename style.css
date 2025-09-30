@@ -749,6 +749,112 @@ select.form-control {
   padding-bottom: 80px; /* Space for bottom navigation */
 }
 
+/* Setup Banner for Domain Authorization */
+.setup-banner {
+  background: var(--color-bg-4);
+  border: 1px solid var(--color-error);
+  border-bottom: 2px solid var(--color-error);
+  padding: var(--space-16) var(--space-16);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.setup-content {
+  max-width: var(--container-xl);
+  margin: 0 auto;
+}
+
+.setup-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  margin-bottom: var(--space-16);
+}
+
+.setup-icon {
+  font-size: var(--font-size-xl);
+}
+
+.setup-header h3 {
+  color: var(--color-error);
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.setup-instructions {
+  margin-bottom: var(--space-20);
+}
+
+.setup-instructions p {
+  margin-bottom: var(--space-12);
+  font-weight: var(--font-weight-medium);
+}
+
+.domain-display {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: var(--space-12) 0;
+  padding: var(--space-12);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+}
+
+.domain-display code {
+  flex: 1;
+  background: none;
+  padding: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.copy-btn {
+  background: var(--color-secondary);
+  border: 1px solid var(--color-border);
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: background var(--duration-fast) var(--ease-standard);
+  min-height: 32px;
+  min-width: 32px;
+}
+
+.copy-btn:hover {
+  background: var(--color-secondary-hover);
+}
+
+.setup-steps {
+  margin: var(--space-16) 0;
+}
+
+.setup-steps ol {
+  margin: 0;
+  padding-left: var(--space-20);
+}
+
+.setup-steps li {
+  margin-bottom: var(--space-8);
+  font-size: var(--font-size-sm);
+}
+
+.setup-steps a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.setup-content .btn {
+  margin-right: var(--space-8);
+  margin-bottom: var(--space-8);
+}
+
+.setup-banner.hidden {
+  display: none;
+}
+
 /* Google Drive Authentication Banner */
 .auth-banner {
   background: var(--color-bg-1);
@@ -756,7 +862,7 @@ select.form-control {
   padding: var(--space-12) var(--space-16);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 99;
 }
 
 .auth-content {
@@ -784,12 +890,6 @@ select.form-control {
   display: none;
 }
 
-/* Setup Instructions Banner Styles */
-.auth-banner p {
-  margin: 0;
-  line-height: 1.4;
-}
-
 /* Sync Status Bar */
 .sync-status {
   background: var(--color-bg-3);
@@ -797,7 +897,7 @@ select.form-control {
   padding: var(--space-8) var(--space-16);
   position: sticky;
   top: 0;
-  z-index: 99;
+  z-index: 98;
 }
 
 .sync-content {
@@ -1334,31 +1434,6 @@ select.form-control {
   text-align: center;
 }
 
-/* Setup Instructions Styles */
-.setup-instructions {
-  text-align: left;
-}
-
-.setup-instructions h4 {
-  margin-bottom: var(--space-12);
-  color: var(--color-text);
-}
-
-.setup-instructions ol {
-  padding-left: var(--space-20);
-  color: var(--color-text-secondary);
-}
-
-.setup-instructions ol li {
-  margin-bottom: var(--space-8);
-  line-height: 1.5;
-}
-
-.setup-instructions a {
-  color: var(--color-primary);
-  text-decoration: underline;
-}
-
 /* Sync Settings Modal Content */
 .sync-settings-content {
   max-width: 100%;
@@ -1379,22 +1454,13 @@ select.form-control {
 .status-row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   padding: var(--space-4) 0;
   font-size: var(--font-size-sm);
-  gap: var(--space-8);
 }
 
-.status-row span:first-child {
+.status-row:first-child span:first-child {
   font-weight: var(--font-weight-medium);
-  flex-shrink: 0;
-  min-width: 80px;
-}
-
-.status-row span:last-child {
-  text-align: right;
-  word-break: break-word;
-  flex: 1;
 }
 
 .sync-actions {
@@ -1403,7 +1469,7 @@ select.form-control {
   gap: var(--space-12);
 }
 
-/* Modal - Mobile Optimized with Fixed Overlay */
+/* Modal - Mobile Optimized */
 .modal {
   position: fixed;
   top: 0;
@@ -1418,18 +1484,16 @@ select.form-control {
 }
 
 .modal.hidden {
-  display: none !important;
+  display: none;
 }
 
 .modal__overlay {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 2000;
-  backdrop-filter: blur(2px);
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .modal__content {
@@ -1442,8 +1506,6 @@ select.form-control {
   z-index: 2001;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--color-card-border);
 }
 
 .modal__content h3 {
@@ -1555,6 +1617,37 @@ select.form-control {
   font-size: var(--font-size-sm);
 }
 
+/* Error message styling */
+.error-message {
+  background: var(--color-bg-4);
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-base);
+  margin: var(--space-16) 0;
+  font-size: var(--font-size-sm);
+}
+
+.warning-message {
+  background: var(--color-bg-6);
+  border: 1px solid var(--color-warning);
+  color: var(--color-warning);
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-base);
+  margin: var(--space-16) 0;
+  font-size: var(--font-size-sm);
+}
+
+.success-message {
+  background: var(--color-bg-3);
+  border: 1px solid var(--color-success);
+  color: var(--color-success);
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-base);
+  margin: var(--space-16) 0;
+  font-size: var(--font-size-sm);
+}
+
 /* Responsive Design - Tablet and Desktop */
 @media (min-width: 768px) {
   .app-container {
@@ -1614,6 +1707,11 @@ select.form-control {
     justify-content: center;
   }
   
+  .setup-content .btn {
+    margin-right: var(--space-8);
+    margin-bottom: 0;
+  }
+  
   .payment-methods-grid,
   .reminders-grid {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -1631,12 +1729,6 @@ select.form-control {
     width: 90%;
     padding: var(--space-32);
   }
-
-  /* Setup banner content adjustments for larger screens */
-  .auth-content {
-    flex-direction: row;
-    align-items: center;
-  }
 }
 
 @media (min-width: 1024px) {
@@ -1650,10 +1742,6 @@ select.form-control {
   
   .metric__value {
     font-size: var(--font-size-4xl);
-  }
-
-  .settings-grid {
-    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -1679,10 +1767,6 @@ select.form-control {
   .reminder-card {
     border-width: 2px;
   }
-  
-  .modal__overlay {
-    background: rgba(0, 0, 0, 0.8);
-  }
 }
 
 /* Reduce motion for users who prefer it */
@@ -1696,9 +1780,5 @@ select.form-control {
   
   .sync-dot.syncing {
     animation: none;
-  }
-  
-  .modal__overlay {
-    backdrop-filter: none;
   }
 }
