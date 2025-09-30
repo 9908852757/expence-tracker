@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Expense Tracker - Track Your Expenses in Rupees</title>
+    <meta name="description" content="Track your daily expenses in Indian Rupees with Google Sheets integration">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://apis.google.com/js/api.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Google Sheets Authentication Banner -->
+        <div id="auth-banner" class="auth-banner">
+            <div class="auth-content">
+                <div class="auth-message">
+                    <span class="auth-icon">📊</span>
+                    <span>Connect to Google Sheets for cloud sync</span>
+                </div>
+                <button class="btn btn--primary btn--sm" onclick="app.showGoogleSetup()">Connect</button>
+            </div>
+        </div>
+
+        <!-- Sync Status Bar -->
+        <div id="sync-status" class="sync-status hidden">
+            <div class="sync-content">
+                <span class="sync-indicator">
+                    <span class="sync-dot" id="sync-dot"></span>
+                    <span id="sync-text">Local Storage</span>
+                </span>
+                <button class="sync-button" onclick="app.showSyncSettings()" title="Sync Settings">⚙️</button>
+            </div>
+        </div>
+
+        <!-- Mobile-First Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-view="dashboard">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Dashboard</span>
+            </button>
+            <button class="nav-item" data-view="add-expense">
+                <span class="nav-icon">➕</span>
+                <span class="nav-label">Add</span>
+            </button>
+            <button class="nav-item" data-view="payment-methods">
+                <span class="nav-icon">💳</span>
+                <span class="nav-label">Methods</span>
+            </button>
+            <button class="nav-item" data-view="reminders">
+                <span class="nav-icon">🔔</span>
+                <span class="nav-label">Reminders</span>
+            </button>
+            <button class="nav-item" data-view="analytics">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">Analytics</span>
+            </button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard View -->
+            <div id="dashboard" class="view active">
+                <div class="view-header">
+                    <h1>Dashboard</h1>
+                    <button class="btn btn--primary" onclick="showView('add-expense')">
+                        ➕ Add Expense
+                    </button>
+                </div>
+                
+                <div class="dashboard-grid">
+                    <!-- Monthly Summary Card -->
+                    <div class="card">
+                        <div class="card__body">
+                            <h3>This Month</h3>
+                            <div class="metric">
+                                <span class="metric__value" id="monthly-total">₹0.00</span>
+                                <span class="metric__label">Total Expenses</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Payment Methods Breakdown -->
+                    <div class="card">
+                        <div class="card__body">
+                            <h3>Payment Methods</h3>
+                            <div id="payment-breakdown" class="payment-breakdown">
+                                <div class="empty-state">
+                                    <h4>No expenses yet</h4>
+                                    <p>Start by adding your first payment method</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upcoming Reminders -->
+                    <div class="card">
+                        <div class="card__body">
+                            <h3>Upcoming Payments</h3>
+                            <div id="upcoming-reminders" class="reminders-list">
+                                <div class="empty-state">
+                                    <h4>No reminders set</h4>
+                                    <p>Set up bill reminders to never miss a payment</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Transactions -->
+                    <div class="card recent-transactions">
+                        <div class="card__body">
+                            <h3>Recent Transactions</h3>
+                            <div id="recent-transactions" class="transactions-list">
+                                <div class="empty-state">
+                                    <h4>No transactions yet</h4>
+                                    <p>Your expenses will appear here as you add them</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Expense View -->
+            <div id="add-expense" class="view">
+                <div class="view-header">
+                    <h1>Add Expense</h1>
+                </div>
+                
+                <div class="form-container">
+                    <form id="expense-form" class="expense-form">
+                        <div class="form-group">
+                            <label class="form-label" for="expense-date">Date</label>
+                            <input type="date" id="expense-date" class="form-control" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="expense-amount">Amount (₹)</label>
+                            <input type="number" id="expense-amount" class="form-control" step="0.01" min="0" required placeholder="0.00">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="expense-description">Description</label>
+                            <input type="text" id="expense-description" class="form-control" required placeholder="e.g., Grocery shopping">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="expense-category">Category</label>
+                            <select id="expense-category" class="form-control" required>
+                                <option value="">Select Category</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="expense-payment-method">Payment Method</label>
+                            <select id="expense-payment-method" class="form-control" required>
+                                <option value="">Select Payment Method</option>
+                            </select>
+                            <small class="form-help">Need to add a payment method? <a href="#" onclick="showView('payment-methods')">Add one here</a></small>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn--primary btn--full-width">Add Expense</button>
+                            <button type="button" class="btn btn--secondary btn--full-width" onclick="resetExpenseForm()">Clear Form</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Payment Methods View -->
+            <div id="payment-methods" class="view">
+                <div class="view-header">
+                    <h1>Payment Methods</h1>
+                    <button class="btn btn--primary" onclick="showAddPaymentMethodForm()">
+                        ➕ Add Method
+                    </button>
+                </div>
+                
+                <div id="payment-methods-list" class="payment-methods-grid">
+                    <div class="empty-state">
+                        <h3>No payment methods</h3>
+                        <p>Add your bank accounts, cards, and UPI methods to get started</p>
+                        <button class="btn btn--primary" onclick="showAddPaymentMethodForm()">Add First Payment Method</button>
+                    </div>
+                </div>
+
+                <!-- Add Payment Method Modal -->
+                <div id="payment-method-modal" class="modal hidden">
+                    <div class="modal__overlay" onclick="hidePaymentMethodForm()"></div>
+                    <div class="modal__content">
+                        <h3>Add Payment Method</h3>
+                        <form id="payment-method-form">
+                            <div class="form-group">
+                                <label class="form-label" for="pm-name">Name</label>
+                                <input type="text" id="pm-name" class="form-control" placeholder="e.g., HDFC Visa, SBI Savings" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="pm-type">Type</label>
+                                <select id="pm-type" class="form-control" required>
+                                    <option value="">Select Type</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="pm-last-four">Last 4 Digits (Optional)</label>
+                                <input type="text" id="pm-last-four" class="form-control" maxlength="4" placeholder="1234">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="pm-color">Color</label>
+                                <div class="color-picker">
+                                    <input type="color" id="pm-color" class="form-control" value="#1FB8CD">
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn--primary btn--full-width">Add Payment Method</button>
+                                <button type="button" class="btn btn--secondary btn--full-width" onclick="hidePaymentMethodForm()">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reminders View -->
+            <div id="reminders" class="view">
+                <div class="view-header">
+                    <h1>Bill Reminders</h1>
+                    <button class="btn btn--primary" onclick="showAddReminderForm()">
+                        ➕ Add Reminder
+                    </button>
+                </div>
+                
+                <div id="reminders-list" class="reminders-grid">
+                    <div class="empty-state">
+                        <h3>No reminders</h3>
+                        <p>Set up bill reminders so you never miss a payment</p>
+                        <button class="btn btn--primary" onclick="showAddReminderForm()">Add First Reminder</button>
+                    </div>
+                </div>
+
+                <!-- Add Reminder Modal -->
+                <div id="reminder-modal" class="modal hidden">
+                    <div class="modal__overlay" onclick="hideReminderForm()"></div>
+                    <div class="modal__content">
+                        <h3>Add Bill Reminder</h3>
+                        <form id="reminder-form">
+                            <div class="form-group">
+                                <label class="form-label" for="reminder-name">Reminder Name</label>
+                                <input type="text" id="reminder-name" class="form-control" placeholder="e.g., House Rent, Credit Card Bill" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="reminder-amount">Amount (Optional)</label>
+                                <input type="number" id="reminder-amount" class="form-control" step="0.01" min="0" placeholder="0.00">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="reminder-due-date">Due Date</label>
+                                <input type="date" id="reminder-due-date" class="form-control" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="reminder-recurrence">Recurrence</label>
+                                <select id="reminder-recurrence" class="form-control" required>
+                                    <option value="">Select Recurrence</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="reminder-payment-method">Payment Method</label>
+                                <select id="reminder-payment-method" class="form-control" required>
+                                    <option value="">Select Payment Method</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="reminder-days">Remind me (days before)</label>
+                                <input type="number" id="reminder-days" class="form-control" min="1" max="30" value="3" required>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn--primary btn--full-width">Add Reminder</button>
+                                <button type="button" class="btn btn--secondary btn--full-width" onclick="hideReminderForm()">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics View -->
+            <div id="analytics" class="view">
+                <div class="view-header">
+                    <h1>Analytics</h1>
+                    <div class="month-selector">
+                        <button class="btn btn--outline" onclick="changeMonth(-1)">← Prev</button>
+                        <span id="current-month-display"></span>
+                        <button class="btn btn--outline" onclick="changeMonth(1)">Next →</button>
+                    </div>
+                </div>
+                
+                <div id="analytics-content" class="analytics-grid">
+                    <div class="card">
+                        <div class="card__body">
+                            <h3>Spending by Category</h3>
+                            <div class="chart-container" style="position: relative; height: 300px;">
+                                <canvas id="category-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card__body">
+                            <h3>Payment Method Usage</h3>
+                            <div class="chart-container" style="position: relative; height: 300px;">
+                                <canvas id="payment-method-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settings" class="view">
+                <div class="view-header">
+                    <h1>Settings</h1>
+                </div>
+                
+                <div class="settings-grid">
+                    <div class="card">
+                        <div class="card__body">
+                            <h3>Google Sheets Integration</h3>
+                            <div id="google-connection-status" class="connection-status">
+                                <div class="status-indicator">
+                                    <span class="status-dot offline"></span>
+                                    <span>Not Connected</span>
+                                </div>
+                                <p>Connect to Google Sheets to sync your data across devices.</p>
+                                <div class="settings-actions">
+                                    <button class="btn btn--primary" onclick="app.showGoogleSetup()">Connect to Google Sheets</button>
+                                    <button class="btn btn--outline" onclick="app.exportData()">Export Data</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card__body">
+                            <h3>Data Management</h3>
+                            <div class="data-management">
+                                <p>Manage your expense data and preferences.</p>
+                                <div class="settings-actions">
+                                    <button class="btn btn--secondary" onclick="app.importData()">Import Data</button>
+                                    <button class="btn btn--outline" onclick="app.clearAllData()">Clear All Data</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Google Sheets Setup Modal -->
+        <div id="google-setup-modal" class="modal hidden">
+            <div class="modal__overlay" onclick="app.hideGoogleSetup()"></div>
+            <div class="modal__content">
+                <h3>Google Sheets Integration Setup</h3>
+                <div class="setup-content">
+                    <div class="setup-step">
+                        <h4>Step 1: Google Cloud Console</h4>
+                        <p>Go to <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a> and create a new project or select an existing one.</p>
+                    </div>
+                    
+                    <div class="setup-step">
+                        <h4>Step 2: Enable APIs</h4>
+                        <p>Enable the Google Sheets API and Google Drive API for your project.</p>
+                    </div>
+                    
+                    <div class="setup-step">
+                        <h4>Step 3: Create Credentials</h4>
+                        <p>Create OAuth 2.0 credentials (Web Application) and add your domain to authorized JavaScript origins.</p>
+                    </div>
+                    
+                    <div class="setup-step">
+                        <h4>Step 4: Configure Client ID</h4>
+                        <div class="form-group">
+                            <label class="form-label" for="client-id">Google Client ID</label>
+                            <input type="text" id="client-id" class="form-control" placeholder="Your Google OAuth Client ID">
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button class="btn btn--primary" onclick="app.connectGoogleSheets()">Connect</button>
+                        <button class="btn btn--secondary" onclick="app.hideGoogleSetup()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sync Settings Modal -->
+        <div id="sync-settings-modal" class="modal hidden">
+            <div class="modal__overlay" onclick="app.hideSyncSettings()"></div>
+            <div class="modal__content">
+                <h3>Sync Settings</h3>
+                <div class="sync-settings-content">
+                    <div class="sync-status-info">
+                        <h4>Current Status</h4>
+                        <div class="status-row">
+                            <span>Connection:</span>
+                            <span id="connection-status">Local Storage Only</span>
+                        </div>
+                        <div class="status-row">
+                            <span>Last Sync:</span>
+                            <span id="last-sync">Never</span>
+                        </div>
+                        <div class="status-row">
+                            <span>Data Records:</span>
+                            <span id="data-count">0 expenses, 0 methods, 0 reminders</span>
+                        </div>
+                    </div>
+                    
+                    <div class="sync-actions">
+                        <button class="btn btn--primary" onclick="app.manualSync()" disabled>Manual Sync</button>
+                        <button class="btn btn--secondary" onclick="app.showGoogleSetup()">Setup Google Sheets</button>
+                        <button class="btn btn--outline" onclick="app.hideSyncSettings()">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
